@@ -12,4 +12,4 @@
  * Le passage d'une salle a la suivante (message `roomAdvance`) arrive avec la
  * salle 2.
  */
-export const CHAINE_DES_SALLES = ["room-01"] as const;
+export const CHAINE_DES_SALLES = ["room-01", "room-02"] as const;

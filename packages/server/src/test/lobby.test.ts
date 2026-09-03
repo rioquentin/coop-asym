@@ -135,6 +135,7 @@ describe("lobby", () => {
         "code",
         "phase",
         "players",
+        "room",
       ]);
     } finally {
       await room.leave(true);

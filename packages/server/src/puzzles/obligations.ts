@@ -133,7 +133,37 @@ export function verifierObligations(
     // --- Obligation 2 : rejet -------------------------------------------
     // On verifie la propriete que l'enonce protege, et qui est plus forte :
     // il n'existe aucun etat gagnant en dehors du bon. Voir D22.
-    const attendu = stable(appliquer(enigme, depart, enigme.solve(depart)));
+    //
+    // « Le bon » se mesure sur les seuls champs que la solution modifie. Une
+    // instance peut porter de l'etat incident — un jalon pose en chemin, par
+    // exemple — qui ne conditionne pas la victoire ; l'exiger identique
+    // reviendrait a refuser des parties gagnantes parfaitement legitimes.
+    const canonique = appliquer(enigme, depart, enigme.solve(depart));
+    const clesQuiComptent = Object.keys(
+      canonique as Record<string, unknown>,
+    ).filter(
+      (cle) =>
+        stable((canonique as Record<string, unknown>)[cle]) !==
+        stable((depart as Record<string, unknown>)[cle]),
+    );
+
+    if (clesQuiComptent.length === 0) {
+      // Une solution qui ne change rien ne prouve rien.
+      note("rejet/solution-sans-effet", seed);
+      rejet = false;
+    }
+
+    const empreinte = (etat: unknown): string =>
+      stable(
+        Object.fromEntries(
+          clesQuiComptent.map((cle) => [
+            cle,
+            (etat as Record<string, unknown>)[cle],
+          ]),
+        ),
+      );
+
+    const attendu = empreinte(canonique);
     const longueur = 2 * metriques.solutionDepth;
     const rng = rngDepuis(`rejet-${seed}`);
 
@@ -146,7 +176,7 @@ export function verifierObligations(
 
         if (enigme.isSolved(marche)) {
           victoiresFortuites++;
-          if (stable(marche) !== attendu) {
+          if (empreinte(marche) !== attendu) {
             note("rejet", seed);
             rejet = false;
           }

@@ -433,6 +433,76 @@ l'ouverture accidentelle impossible.
 
 ---
 
+## Salle 2 — TOPOLOGIE
+
+### D40. Le plan est tiré à chaque partie, pas figé dans le contenu
+
+La salle 1 fige sa correspondance glyphe/sens dans `content/prod` ; la salle 2
+ne fige que des paramètres — taille, nombre de boucles, distance visée — et
+construit son labyrinthe depuis le seed de la partie.
+
+C'est mieux ici, et pour deux raisons. Une partie rejouée donne un autre plan,
+donc personne ne peut l'apprendre par cœur. Et il n'y a rien à protéger dans
+le contenu : le secret n'existe plus, au lieu d'être gardé.
+
+### D41. Le jalon donne à A une action, pas seulement la parole
+
+`schema/puzzle.schema.json` impose `canAct: true` pour les deux rôles, contre
+l'anti-pattern du goulot. En topologie, A tient le plan et parle — sans plus,
+il ne serait qu'une voix. Il peut donc poser un **jalon** sur une case ; B le
+sent sous ses pieds en y passant.
+
+C'est l'outil de désambiguïsation du duo quand deux endroits se ressemblent,
+et c'est ce qui fait de A un joueur plutôt qu'un lecteur à voix haute.
+
+### D42. B sait quand il est arrivé — sinon `sceller` devient un oracle
+
+Tentation naturelle : que B ne perçoive que les murs, et que A doive déduire
+son arrivée. Ça rend le sceau d'A vraiment risqué… et ça ouvre une porte
+dérobée. A pourrait faire errer B au hasard en scellant après chaque pas : le
+refus lui dirait « pas encore », l'acceptation « c'est là ». Seize cases,
+seize essais, l'énigme contournée. C'est l'anti-pattern du devinage.
+
+B sait donc qu'il est sur le dépôt quand il y est. Le sceau d'A confirme ce
+que B vient d'annoncer, il ne le découvre pas — donc il n'apprend rien.
+
+### D43. Le critère de rejet se mesure sur les champs que la solution touche
+
+**Trouvé en faisant tourner l'obligation 2 sur un deuxième module.** Mon
+critère comparait l'état gagnant atteint à l'état canonique **en entier**. En
+topologie, une marche au hasard peut poser un jalon en chemin : l'état diffère
+alors du canonique par un champ qui ne conditionne pas la victoire, et
+77 seeds sur 500 étaient signalés à tort.
+
+Le critère porte maintenant sur les seuls champs que `solve()` modifie —
+déduits en comparant l'instance de départ à l'instance résolue. Ce que la
+solution ne touche pas est incident par construction.
+
+Un module dont l'instance porterait un champ décisif que `solve()` ne modifie
+jamais échapperait encore à ce contrôle. Le cas est théorique ; il est noté
+ici pour qu'il ne soit pas une surprise.
+
+### D44. Chaque salle tire son instance d'un seed dérivé
+
+Une partie a un seed ; la salle *n* utilise `<seed>-<n>`. Même partie rejouée,
+mêmes salles dans le même ordre — et un seed loggé reste loggable, il ne
+révèle rien sans les générateurs, qui sont côté serveur.
+
+### D45. `room` entre dans l'état public
+
+`docs/architecture.md` §2 prévoyait « salle courante » dans l'état partagé ;
+le champ existait dans le document et pas dans le code. Il y est maintenant,
+et le garde-fou des champs publics l'inclut.
+
+### D46. Chaque vue déclare les champs qu'elle a le droit de porter
+
+Le harnais vérifie, pour les 500 seeds et les deux rôles, que les clés d'une
+vue sont exactement celles attendues. Ajouter un champ à une vue oblige donc à
+l'ajouter aussi dans le test — c'est-à-dire à se demander une deuxième fois si
+ce champ ne donne pas à un rôle ce qui appartient à l'autre.
+
+---
+
 ## Environnement
 
 - **pnpm** n'était pas installé et `corepack enable` demande l'élévation sous
