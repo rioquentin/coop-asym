@@ -1,0 +1,7 @@
+# Mur anti-spoil — CLAUDE.md section 2.
+# Git ne doit jamais afficher de diff textuel sur le contenu réel.
+content/prod/** -diff -merge
+*.enc binary -diff -merge
+
+# Normalisation des fins de ligne dans le dépôt.
+* text=auto

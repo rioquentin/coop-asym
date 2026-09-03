@@ -1,0 +1,25 @@
+# Dépendances
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Artefacts du solveur — CLAUDE.md section 2.
+.solver-cache/
+
+# Secrets. CONTENT_KEY ne doit jamais être versionnée.
+.env
+.env.*
+!.env.example
+
+# Contenu déchiffré par accident : ne doit jamais remonter dans git.
+content/prod/**/*.json
+content/prod/**/*.decrypted
+
+# Divers
+coverage/
+*.log
+.DS_Store
