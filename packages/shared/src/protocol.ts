@@ -36,7 +36,13 @@ export type ClientMessage =
 export type ServerMessage =
   | { t: "view"; puzzleId: string; role: Role; view: View }
   | { t: "feedback"; kind: "accepted" | "rejected"; hint?: string }
-  | { t: "roomAdvance"; room: number }
+  | {
+      t: "roomAdvance";
+      room: number;
+      /** Habillage de la salle. Absent tant qu'elle n'en a pas. */
+      label?: string;
+      ambient?: string;
+    }
   | { t: "partner"; status: "connected" | "disconnected" }
   | { t: "chat"; from: Role; text: string }
   | { t: "finished" };

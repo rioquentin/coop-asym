@@ -64,8 +64,10 @@ Jalons 1 à 3 faits, salle 1 mécaniquement écrite :
 - **Jalon 3** — moteur d'énigmes (`PuzzleModule`), loader de contenu
   dev/prod chiffré, harnais des quatre obligations de vérification.
 - **Salle 1** — primitive LEXIQUE, glyphes composés et tracés en SVG, contenu
-  tiré et chiffré dans `content/prod/`. Sans habillage narratif — voir D35
-  dans `DECISIONS.md`.
+  tiré et chiffré dans `content/prod/`, habillage narratif posé.
+- **Trame** — les cinq salles et le retournement de la salle 5, chiffrés dans
+  `content/prod/trame.enc`. Écrits par un canal séparé, contrôlés par
+  programme, jamais relus — voir D35 à D37 dans `DECISIONS.md`.
 
 ## Contenu
 
@@ -73,6 +75,7 @@ Jalons 1 à 3 faits, salle 1 mécaniquement écrite :
 pnpm --filter @coop/server content:cle          # génère CONTENT_KEY dans .env
 pnpm --filter @coop/server content:salle-01     # tire et chiffre la salle 1
 pnpm --filter @coop/server content:verifier room-01
+pnpm --filter @coop/server content:controler-trame
 ```
 
 Le contenu de `content/prod/` est tiré au hasard à l'exécution, chiffré avant

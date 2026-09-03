@@ -377,6 +377,62 @@ Options, par ordre de préférence :
 
 ---
 
+## Session 4 (suite) — la trame
+
+### D36. La trame est écrite par un canal séparé
+
+Option 1 de D35, retenue le 3 septembre 2026. Un agent lancé en tâche de fond
+a écrit la trame des cinq salles, le retournement de la salle 5 et l'habillage
+de la salle 1, puis les a chiffrés dans `content/prod`. Son rapport final
+était contraint à six lignes sans contenu.
+
+**La garantie est procédurale, pas technique**, et il faut le dire clairement :
+le transcript de travail de cet agent contient la trame et se trouve sur le
+disque. Ce qui protège le secret, c'est l'engagement du propriétaire à ne pas
+l'ouvrir. Aucun mécanisme ne l'en empêche.
+
+Ce qui est technique, en revanche : `content:habiller` déchiffre la salle **en
+mémoire** et n'y ajoute que la clé `dressing`. L'auteur de la prose n'a donc
+jamais vu la mécanique — les glyphes et leur sens restent inconnus de tout le
+monde, y compris de lui.
+
+### D37. La trame est contrôlée par programme, pas relue
+
+`content:controler-trame` déchiffre en mémoire et ne rend que des verdicts :
+cinq salles numérotées, un libellé et une ambiance par salle, aucune ambiance
+au-dessus de 40 mots, une inversion parmi les deux formes implémentables,
+au moins deux indices, une fin unique — plus deux contrôles lexicaux, l'absence
+de vocabulaire de fantasy générique et l'absence de religion réelle nommée
+(world bible §3 et §4).
+
+C'est la seule façon de vérifier un texte que personne ne relira jamais. Un
+contrôle à l'œil aurait supposé de le lire.
+
+Le champ `inversion.mecanique` ne prend que deux valeurs,
+`ROLES_ECHANGES` ou `LEXIQUE_INVERSE` : une session future implémentera la
+salle 5 en lisant ce champ par programme, sans avoir à afficher le reste.
+
+### D38. `roomAdvance` porte l'habillage
+
+Le message était déclaré dans `docs/architecture.md` §5 avec le seul numéro de
+salle. Il porte maintenant aussi `label` et `ambient`, envoyés à l'entrée en
+`PLAYING` et rendus au retour d'un joueur déconnecté. Sans ça, l'habillage
+existait dans le contenu chiffré mais n'atteignait jamais l'écran.
+
+Il est identique pour les deux rôles : c'est du décor, pas de l'information.
+
+### D39. Les sources en clair sont effacées, pas seulement supprimées
+
+`content:chiffrer` et `content:habiller` écrasent le fichier source par du
+bruit avant de le délier, et refusent une source située dans le dépôt — un
+clair posé dans `content/` le temps d'un commit serait un clair de trop.
+
+Ce n'est pas de la sécurité : un journal de système de fichiers peut en garder
+trace. C'est le même garde-fou que le chiffrement de `content/prod`, rendre
+l'ouverture accidentelle impossible.
+
+---
+
 ## Environnement
 
 - **pnpm** n'était pas installé et `corepack enable` demande l'élévation sous

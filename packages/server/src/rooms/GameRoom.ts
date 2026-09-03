@@ -14,6 +14,7 @@ import {
 } from "@coop/shared";
 import { CHAINE_DES_SALLES } from "../content/chaine";
 import { chargerDefinition } from "../content/loader";
+import type { PuzzleDefinition } from "../content/types";
 import { chargerModule, type OpaquePuzzleModule } from "../puzzles/registry";
 import { allocateRoomCode } from "./roomCode";
 
@@ -36,7 +37,8 @@ export class GameRoom extends Room<{ state: GameState }> {
   /** Minuteur de destruction de la phase courante. Voir armTtl(). */
   private ttlTimer?: TtlTimer;
 
-  /** Le module de la salle en cours. Charge une fois a la creation. */
+  /** La salle en cours et son module. Charges une fois a la creation. */
+  private definition?: PuzzleDefinition;
   private module?: OpaquePuzzleModule;
 
   /**
@@ -67,8 +69,9 @@ export class GameRoom extends Room<{ state: GameState }> {
     // On ne rejoint que par code dicte : pas de listing public.
     await this.setPrivate(true);
 
-    // v1 : chaine lineaire, une seule salle cablee au jalon 3.
-    this.module = chargerModule(chargerDefinition(CHAINE_DES_SALLES[0]));
+    // v1 : chaine lineaire, une seule salle cablee pour l'instant.
+    this.definition = chargerDefinition(CHAINE_DES_SALLES[0]);
+    this.module = chargerModule(this.definition);
     this.seed = randomBytes(8).toString("hex");
     logger.info(`[room ${this.roomId}] seed=${this.seed}`);
 
@@ -120,7 +123,9 @@ export class GameRoom extends Room<{ state: GameState }> {
       this.setPhase("PLAYING");
     }
 
-    // Le joueur ne doit rien reperdre : sa vue lui est rendue telle quelle.
+    // Le joueur ne doit rien reperdre : sa salle et sa vue lui sont rendues
+    // telles quelles.
+    this.pushSalle(client);
     this.pushView(client);
   }
 
@@ -228,7 +233,26 @@ export class GameRoom extends Room<{ state: GameState }> {
 
     this.instance = this.module?.generate(this.seed);
     this.setPhase("PLAYING");
+    for (const client of this.clients) this.pushSalle(client);
     this.pushViews();
+  }
+
+  /**
+   * Annonce la salle et son habillage.
+   *
+   * L'habillage est le meme pour les deux joueurs : c'est du decor, pas de
+   * l'information. docs/world-bible.md section 5 interdit qu'il porte le
+   * moindre indice de resolution.
+   */
+  private pushSalle(client: Client): void {
+    if (!this.definition) return;
+    const dressing = this.definition.dressing;
+    this.sendTo(client, {
+      t: "roomAdvance",
+      room: this.definition.room,
+      ...(dressing?.roomLabel ? { label: dressing.roomLabel } : {}),
+      ...(dressing?.ambientText ? { ambient: dressing.ambientText } : {}),
+    });
   }
 
   /** Envoie a chaque joueur SA vue, et rien d'autre. */

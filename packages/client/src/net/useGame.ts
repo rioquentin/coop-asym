@@ -40,6 +40,13 @@ export interface Snapshot {
 
 export type Status = "restoring" | "idle" | "connecting" | "connected";
 
+/** La salle en cours, telle que le serveur l'annonce. */
+export interface Salle {
+  room: number;
+  label?: string;
+  ambient?: string;
+}
+
 /** Dernier retour du serveur sur une intention envoyee. */
 export interface Feedback {
   kind: "accepted" | "rejected";
@@ -52,6 +59,7 @@ export interface Game {
   error: string | null;
   /** La vue de CE joueur. Le client n'en connait jamais d'autre. */
   view: View | null;
+  salle: Salle | null;
   feedback: Feedback | null;
   finished: boolean;
   createRoom: () => Promise<void>;
@@ -98,6 +106,7 @@ export function useGame(): Game {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
+  const [salle, setSalle] = useState<Salle | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [finished, setFinished] = useState(false);
 
@@ -123,6 +132,15 @@ export function useGame(): Game {
         case "feedback":
           setFeedback({ kind: message.kind, hint: message.hint });
           return;
+        case "roomAdvance":
+          setSalle({
+            room: message.room,
+            ...(message.label !== undefined ? { label: message.label } : {}),
+            ...(message.ambient !== undefined
+              ? { ambient: message.ambient }
+              : {}),
+          });
+          return;
         case "finished":
           setFinished(true);
           return;
@@ -141,6 +159,7 @@ export function useGame(): Game {
       puzzleIdRef.current = null;
       setSnapshot(null);
       setView(null);
+      setSalle(null);
       setFeedback(null);
       setFinished(false);
       setStatus("idle");
@@ -148,6 +167,7 @@ export function useGame(): Game {
 
     setError(null);
     setView(null);
+    setSalle(null);
     setFeedback(null);
     setFinished(false);
     setStatus("connected");
@@ -234,6 +254,7 @@ export function useGame(): Game {
     snapshot,
     error,
     view,
+    salle,
     feedback,
     finished,
     createRoom,

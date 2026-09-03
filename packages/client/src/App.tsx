@@ -8,7 +8,13 @@ import {
   type GridView,
   type LegendView,
 } from "@coop/shared";
-import { useGame, type Feedback, type Game, type Snapshot } from "./net/useGame";
+import {
+  useGame,
+  type Feedback,
+  type Game,
+  type Salle,
+  type Snapshot,
+} from "./net/useGame";
 
 export function App() {
   const game = useGame();
@@ -33,7 +39,11 @@ function Session({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
     return <Fin onLeave={game.leaveRoom} />;
   }
   if (snapshot.phase === "PLAYING" && game.view) {
-    const commun = { feedback: game.feedback, onAct: game.act };
+    const commun = {
+      feedback: game.feedback,
+      salle: game.salle,
+      onAct: game.act,
+    };
     return game.view.kind === "grid" ? (
       <Plateau view={game.view} {...commun} onLeave={game.leaveRoom} />
     ) : (
@@ -172,8 +182,26 @@ function TraceGlyphe({ glyphe }: { glyphe: Glyphe }) {
 
 interface PosteProps {
   feedback: Feedback | null;
+  salle: Salle | null;
   onAct: (action: Action) => void;
   onLeave: () => void;
+}
+
+/**
+ * L'habillage de la salle : son nom et son texte d'ambiance.
+ *
+ * Il ne porte jamais d'indice de resolution (world bible section 5), donc un
+ * joueur qui ne le lit pas n'est pas puni. Il est identique pour les deux
+ * roles : c'est du decor, pas de l'information.
+ */
+function Ambiance({ salle }: { salle: Salle | null }) {
+  if (!salle?.label && !salle?.ambient) return null;
+  return (
+    <header className="ambiance">
+      {salle.label && <p className="salle">{salle.label}</p>}
+      {salle.ambient && <p className="ambiant">{salle.ambient}</p>}
+    </header>
+  );
 }
 
 /**
@@ -185,6 +213,7 @@ interface PosteProps {
 function Plateau({
   view,
   feedback,
+  salle,
   onAct,
   onLeave,
 }: PosteProps & { view: GridView }) {
@@ -205,6 +234,7 @@ function Plateau({
 
   return (
     <main className="sheet">
+      <Ambiance salle={salle} />
       <h1>Planche</h1>
       <p className="muted">
         Choisissez un glyphe, puis la case ou le porter. Cliquez une case
@@ -258,6 +288,7 @@ function Plateau({
 function Registre({
   view,
   feedback,
+  salle,
   onAct,
   onLeave,
 }: PosteProps & { view: LegendView }) {
@@ -267,6 +298,7 @@ function Registre({
 
   return (
     <main className="sheet">
+      <Ambiance salle={salle} />
       <h1>Registre</h1>
       <p className="muted">
         Vous seul avez le sens des glyphes et l'ordre du releve. Vous ne pouvez

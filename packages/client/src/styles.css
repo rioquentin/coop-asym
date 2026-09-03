@@ -263,3 +263,27 @@ input:focus {
 .legende li {
   align-items: center;
 }
+
+/*
+ * L'habillage. Il precede le poste de travail et ne doit jamais rivaliser
+ * avec lui : l'accent sature reste reserve a ce qui est actionnable.
+ */
+.ambiance {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--regle);
+}
+
+.salle {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--encre-pale);
+}
+
+.ambiant {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
