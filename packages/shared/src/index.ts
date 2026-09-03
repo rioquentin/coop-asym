@@ -7,4 +7,5 @@
 
 export * from "./roomCode";
 export * from "./protocol";
+export * from "./puzzle";
 export * from "./state";

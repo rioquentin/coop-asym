@@ -55,13 +55,20 @@ schema/     JSON Schema d'une définition d'énigme
 
 ## État
 
-Jalons 1 et 2 faits :
+Jalons 1 à 3 faits :
 
 - **Jalon 1** — lobby, code de room à 4 lettres, 2/2 connectés, attribution des
   rôles, reconnexion, balayage des rooms mortes.
-- **Jalon 2** — boucle réseau complète sur une énigme bidon : A voit un
-  commutateur, B voit un voyant, aucun des deux ne voit la vue de l'autre.
-  L'autorité est entièrement serveur.
+- **Jalon 2** — boucle réseau complète : chaque joueur ne reçoit que sa vue,
+  l'autorité est entièrement serveur.
+- **Jalon 3** — moteur d'énigmes (`PuzzleModule`), loader de contenu
+  dev/prod chiffré, et le harnais des quatre obligations de vérification.
+  Tout tourne sur `content/dev/room-01-fixture.json`.
 
-Pas encore de moteur d'énigmes ni de contenu — voir les jalons dans
-`docs/architecture.md` section 7.
+Pas encore de contenu réel : `content/prod/` n'existe pas.
+
+## Vérification
+
+`pnpm test` fait tourner, entre autres, les quatre obligations de
+`CLAUDE.md` section 4 sur 500 seeds. Les échecs n'impriment que
+l'identifiant de l'assertion et le seed — jamais une valeur de solution.

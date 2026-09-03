@@ -155,21 +155,80 @@ input:focus {
 }
 
 /*
- * Le voyant. C'est la seule information actionnable de la vue de B, donc la
- * seule chose qui porte l'accent sature (world bible section 6).
+ * Le poste de travail. Contrainte de lisibilite de la world bible section 6 :
+ * tout element qui doit etre decrit a l'oral est contraste et non ambigu.
+ * L'accent sature est reserve a ce qui est actionnable.
  */
-.lampe {
-  margin: 1.5rem 0;
-  padding: 1rem;
-  border: 1px solid var(--regle);
-  text-align: center;
-  letter-spacing: 0.3em;
+
+.rangee {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0 1.25rem;
+}
+
+.glyphe,
+.case {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  min-width: 5rem;
+  padding: 0.7rem 0.4rem;
+  text-align: center;
+}
+
+.glyphe.choisi {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.case {
+  position: relative;
+  border-style: dashed;
   color: var(--encre-pale);
 }
 
-.lampe.allumee {
-  border-color: var(--accent);
+.case.remplie {
+  border-style: solid;
+  color: var(--encre);
+}
+
+.rang {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.3rem;
+  font-size: 0.6rem;
+  color: var(--encre-pale);
+}
+
+.releve,
+.legende {
+  margin: 0.4rem 0 1.25rem;
+  padding-left: 1.4rem;
+  font-size: 0.85rem;
+}
+
+.legende {
+  list-style: none;
+  padding-left: 0;
+}
+
+.releve li,
+.legende li {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--regle);
+}
+
+.releve .pose,
+.legende .glyphe-nom {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--encre-pale);
+}
+
+.releve li.juste .pose {
   color: var(--accent);
 }
 

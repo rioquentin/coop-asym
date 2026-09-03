@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Room, logger, type Client } from "@colyseus/core";
 import {
   CLIENT_MESSAGE,
@@ -11,7 +12,9 @@ import {
   type RoomPhase,
   type ServerMessage,
 } from "@coop/shared";
-import { demoPuzzle, type DemoInstance } from "../puzzles/demo";
+import { CHAINE_DES_SALLES } from "../content/chaine";
+import { chargerDefinition } from "../content/loader";
+import { chargerModule, type OpaquePuzzleModule } from "../puzzles/registry";
 import { allocateRoomCode } from "./roomCode";
 
 /** Le minuteur rendu par `clock.setTimeout`, sans dependre de @colyseus/timer. */
@@ -26,12 +29,15 @@ const ROLE_ORDER: readonly Role[] = ["A", "B"];
  * Cycle de vie : CREATED -> WAITING (1/2) -> PLAYING, avec PAUSED quand un
  * joueur decroche. Voir docs/architecture.md section 3.
  *
- * Le jalon 1 s'arrete au lobby : il n'y a pas encore d'enigme, donc pas encore
- * de vue a filtrer ni de phase FINISHED atteignable.
+ * La room ne connait rien des enigmes : elle transporte des intentions vers
+ * un module et des vues vers des clients. Toute la logique est dans le module.
  */
 export class GameRoom extends Room<{ state: GameState }> {
   /** Minuteur de destruction de la phase courante. Voir armTtl(). */
   private ttlTimer?: TtlTimer;
+
+  /** Le module de la salle en cours. Charge une fois a la creation. */
+  private module?: OpaquePuzzleModule;
 
   /**
    * L'instance d'enigme en cours.
@@ -40,7 +46,13 @@ export class GameRoom extends Room<{ state: GameState }> {
    * doit jamais partir en synchronisation. Les joueurs n'en recoivent que ce
    * que `viewFor` en extrait, en message cible.
    */
-  private instance?: DemoInstance;
+  private instance?: unknown;
+
+  /**
+   * Le seed de la partie, tire a la creation.
+   * Loggable : il ne revele rien sans le generateur, qui est cote serveur.
+   */
+  private seed = "";
 
   override async onCreate(): Promise<void> {
     this.maxClients = 2;
@@ -54,6 +66,11 @@ export class GameRoom extends Room<{ state: GameState }> {
 
     // On ne rejoint que par code dicte : pas de listing public.
     await this.setPrivate(true);
+
+    // v1 : chaine lineaire, une seule salle cablee au jalon 3.
+    this.module = chargerModule(chargerDefinition(CHAINE_DES_SALLES[0]));
+    this.seed = randomBytes(8).toString("hex");
+    logger.info(`[room ${this.roomId}] seed=${this.seed}`);
 
     this.onMessage(CLIENT_MESSAGE, (client: Client, message: ClientMessage) => {
       this.handleClientMessage(client, message);
@@ -128,18 +145,6 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.ttlTimer?.clear();
   }
 
-  /** Attribution des roles, une seule fois, a l'entree en PLAYING. */
-  private startPlaying(): void {
-    let index = 0;
-    for (const player of this.state.players.values()) {
-      player.role = ROLE_ORDER[index] ?? "";
-      index++;
-    }
-    this.instance = demoPuzzle.generate();
-    this.setPhase("PLAYING");
-    this.pushViews();
-  }
-
   // ---------------------------------------------------------------------
   // Boucle de jeu
   // ---------------------------------------------------------------------
@@ -174,7 +179,12 @@ export class GameRoom extends Room<{ state: GameState }> {
   ): void {
     const role = this.roleOf(client);
 
-    if (this.state.phase !== "PLAYING" || !this.instance || !role) {
+    if (
+      this.state.phase !== "PLAYING" ||
+      !this.module ||
+      this.instance === undefined ||
+      !role
+    ) {
       this.sendTo(client, {
         t: "feedback",
         kind: "rejected",
@@ -183,7 +193,7 @@ export class GameRoom extends Room<{ state: GameState }> {
       return;
     }
 
-    if (message.puzzleId !== demoPuzzle.id) {
+    if (message.puzzleId !== this.module.id) {
       this.sendTo(client, {
         t: "feedback",
         kind: "rejected",
@@ -192,20 +202,33 @@ export class GameRoom extends Room<{ state: GameState }> {
       return;
     }
 
-    const result = demoPuzzle.applyAction(this.instance, role, message.action);
+    const result = this.module.applyAction(this.instance, role, message.action);
     this.instance = result.instance;
 
     this.sendTo(client, { t: "feedback", ...result.feedback });
 
     if (result.feedback.kind === "accepted") {
       this.pushViews();
-      if (demoPuzzle.isSolved(this.instance)) this.finish();
+      if (this.module.isSolved(this.instance)) this.finish();
     }
   }
 
   private finish(): void {
     this.broadcast(SERVER_MESSAGE, { t: "finished" } satisfies ServerMessage);
     this.setPhase("FINISHED");
+  }
+
+  /** Attribution des roles, une seule fois, a l'entree en PLAYING. */
+  private startPlaying(): void {
+    let index = 0;
+    for (const player of this.state.players.values()) {
+      player.role = ROLE_ORDER[index] ?? "";
+      index++;
+    }
+
+    this.instance = this.module?.generate(this.seed);
+    this.setPhase("PLAYING");
+    this.pushViews();
   }
 
   /** Envoie a chaque joueur SA vue, et rien d'autre. */
@@ -215,13 +238,13 @@ export class GameRoom extends Room<{ state: GameState }> {
 
   private pushView(client: Client): void {
     const role = this.roleOf(client);
-    if (!this.instance || !role) return;
+    if (!this.module || this.instance === undefined || !role) return;
 
     this.sendTo(client, {
       t: "view",
-      puzzleId: demoPuzzle.id,
+      puzzleId: this.module.id,
       role,
-      view: demoPuzzle.viewFor(role, this.instance),
+      view: this.module.viewFor(role, this.instance),
     });
   }
 

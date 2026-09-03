@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, type Room } from "@colyseus/sdk";
 import {
   CLIENT_MESSAGE,
-  DEMO_PUZZLE_ID,
   GameState,
   ROOM_NAME,
   SERVER_MESSAGE,
@@ -89,6 +88,11 @@ function toSnapshot(state: GameState, sessionId: string): Snapshot {
 export function useGame(): Game {
   const clientRef = useRef<Client | null>(null);
   const roomRef = useRef<Room<unknown, GameState> | null>(null);
+  /**
+   * L'enigme en cours, apprise du serveur et jamais devinee : le client
+   * renvoie l'identifiant qu'on lui a donne, il n'en connait aucun d'avance.
+   */
+  const puzzleIdRef = useRef<string | null>(null);
 
   const [status, setStatus] = useState<Status>("restoring");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -113,6 +117,7 @@ export function useGame(): Game {
     room.onMessage(SERVER_MESSAGE, (message: ServerMessage) => {
       switch (message.t) {
         case "view":
+          puzzleIdRef.current = message.puzzleId;
           setView(message.view);
           return;
         case "feedback":
@@ -133,6 +138,7 @@ export function useGame(): Game {
     room.onLeave(() => {
       sessionStorage.removeItem(TOKEN_KEY);
       roomRef.current = null;
+      puzzleIdRef.current = null;
       setSnapshot(null);
       setView(null);
       setFeedback(null);
@@ -216,12 +222,10 @@ export function useGame(): Game {
    * l'action est legitime, c'est le serveur qui repond.
    */
   const act = useCallback((action: Action) => {
+    const puzzleId = puzzleIdRef.current;
+    if (!puzzleId) return;
     setFeedback(null);
-    const message: ClientMessage = {
-      t: "action",
-      puzzleId: DEMO_PUZZLE_ID,
-      action,
-    };
+    const message: ClientMessage = { t: "action", puzzleId, action };
     roomRef.current?.send(CLIENT_MESSAGE, message);
   }, []);
 

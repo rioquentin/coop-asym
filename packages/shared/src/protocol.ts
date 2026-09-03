@@ -5,6 +5,9 @@
  * Il n'existe volontairement aucun message `solved` cote client.
  */
 
+// Le protocole transporte vues et actions sans jamais les interpreter.
+import type { Action, View } from "./puzzle";
+
 /** Role d'un joueur. Attribue a l'entree en PLAYING, fige ensuite. */
 export type Role = "A" | "B";
 
@@ -23,30 +26,6 @@ export const ROOM_TTL_MS: Record<Exclude<RoomPhase, "PLAYING">, number> = {
 
 /** Fenetre de reconnexion, en secondes. Alignee sur ROOM_TTL_MS.PAUSED. */
 export const RECONNECTION_WINDOW_SECONDS = ROOM_TTL_MS.PAUSED / 1000;
-
-/** Identifiant de l'enigme bidon du jalon 2. */
-export const DEMO_PUZZLE_ID = "demo-loop";
-
-/**
- * Vues de l'enigme bidon. Elles disent tout du principe du jeu :
- * A ne voit qu'un bouton, B ne voit qu'une lampe. La vue de A ne contient
- * RIEN qui permette de deduire l'etat de la lampe — pas meme un compteur de
- * pressions, dont la parite suffirait.
- */
-export type DemoView =
-  | { kind: "button" }
-  | { kind: "light"; lit: boolean };
-
-/** Intentions de l'enigme bidon. `press` est a A, `confirm` est a B. */
-export type DemoAction = { type: "press" } | { type: "confirm" };
-
-/**
- * Action et View sont pour l'instant celles de l'enigme bidon.
- * Le moteur du jalon 3 les elargira aux vrais PuzzleModule
- * (CLAUDE.md section 3).
- */
-export type Action = DemoAction;
-export type View = DemoView;
 
 export type ClientMessage =
   | { t: "action"; puzzleId: string; action: Action }

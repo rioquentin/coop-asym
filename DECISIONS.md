@@ -176,6 +176,115 @@ Le bundle a tout de même été vérifié à la main une fois : ni `isSolved`, n
 
 ---
 
+## Jalon 3 — moteur d'énigmes, loader, harnais de vérification
+
+### D19. `solve()` étiquette chaque action du rôle qui la joue
+
+`CLAUDE.md` section 3 déclare `solve(inst): Action[]` et
+`applyAction(inst, role, action)`. Ces deux signatures sont incompatibles
+entre elles : le harnais qui rejoue une solution n'a aucun moyen de savoir
+quel rôle joue quelle action. `solve` rend donc des `{ role, action }`.
+
+Ce n'est pas un désaccord avec l'intention du contrat, c'est la seule lecture
+qui le rende exécutable.
+
+### D20. `ambiguites(role, instance)` entre au contrat
+
+L'obligation 3 demande de prouver qu'il existe deux instances distinctes
+produisant la même vue avec des solutions différentes. Chercher cette paire
+parmi des seeds tirés au hasard ne marche que tant que l'espace des instances
+est minuscule — c'est le cas de la fixture, ce ne sera pas le cas des vraies
+salles.
+
+Le module fabrique donc le témoin lui-même : même plateau et cible décalée
+pour A, même registre et plateau décalé pour B. La preuve ne dépend plus de
+la chance, et le test reste exact quelle que soit la taille de l'énigme.
+
+Le harnais vérifie les deux : le témoin construit **et**, indépendamment, le
+regroupement de 500 instances par vue.
+
+### D21. `actionsPossibles(instance)` entre au contrat
+
+Sans elle, l'obligation 2 n'est pas testable par un harnais générique : il
+n'aurait aucun moyen de tirer une action au sort dans un espace qu'il ne
+connaît pas. Elle sert aussi à **mesurer** le facteur de branchement au lieu
+de l'estimer.
+
+Elle liste ce que l'interface propose, refus compris — pas des bons coups.
+Ce n'est pas un oracle de solution.
+
+### D22. L'énoncé littéral de l'obligation de rejet est intenable
+
+`CLAUDE.md` section 4 : « pour 500 seeds, 100 séquences d'actions aléatoires
+ne déclenchent jamais `isSolved() === true` ». Ça fait 50 000 marches. Sur une
+énigme à n cases, une marche au hasard tombe sur la bonne disposition avec une
+probabilité de l'ordre de 1/n!.
+
+**Mesuré sur la fixture (4 glyphes) : 162 victoires fortuites sur 50 000.**
+En transposant par le rapport des factorielles, la salle 1 telle que la spec
+la décrit (6 à 7 glyphes) en produirait de l'ordre de l'unité par exécution —
+c'est-à-dire un test qui passe ou casse au hasard.
+
+Le harnais vérifie donc la propriété que cet énoncé protège, et qui est plus
+forte : **il n'existe aucun état gagnant en dehors du bon.** Chaque marche qui
+atteint `isSolved()` doit produire exactement l'état que `solve()` produit.
+Un `isSolved` trop permissif tombe ; le hasard, non.
+
+Le compteur de victoires fortuites est affiché à chaque exécution : il dit à
+quel point l'énigme résiste au hasard, ce qui est une information de design.
+
+### D23. Le schéma JSON devient exécutoire
+
+`schema/puzzle.schema.json` encode des contraintes dures — plafond C1 à 15,
+`canAct` toujours vrai, `resetsPuzzle` toujours faux, coût d'échec ≤ 5 s. Un
+schéma que personne ne fait tourner est un piège : il donne l'impression que
+la règle est tenue.
+
+Le loader valide chaque définition contre lui (ajv, draft 2020-12). Quatre
+tests vérifient qu'une définition fautive est bien refusée.
+
+Les erreurs de validation ne rapportent que le chemin et le motif, **jamais la
+valeur fautive** : sur `content/prod`, une erreur bavarde serait un spoil.
+
+### D24. Le registre des modules est statique
+
+La définition porte un champ `module` qui est un chemin. Le résoudre par
+import dynamique reviendrait à charger un fichier arbitraire nommé par une
+donnée de contenu. Le registre est une table en dur ; un chemin inconnu
+échoue au chargement.
+
+### D25. `NODE_ENV=production` sans `CONTENT_KEY` refuse de démarrer
+
+Le repli silencieux sur le contenu de développement servirait la fixture bidon
+à de vrais joueurs. Mieux vaut un serveur qui ne démarre pas.
+
+### D26. Le client apprend l'identifiant d'énigme du serveur
+
+Le message `view` porte `puzzleId` ; le client le renvoie dans ses intentions
+et n'en connaît aucun d'avance. Aucune constante d'énigme ne vit côté client,
+donc la liste des salles ne fuit pas par le bundle.
+
+### D27. La fixture est lue comme des paramètres, pas comme une instance figée
+
+`content/dev/room-01-fixture.json` donne le jeu de glyphes, la légende, le
+nombre de cases et un ordre canonique. `generate(seed)` tire de ce matériel
+l'ordre d'affichage **et** l'ordre attendu. Sans ça, `generate` serait
+constant et l'asymétrie n'aurait rien à faire varier.
+
+### D28. `metrics()` décrit l'énigme, pas l'avancement
+
+Les métriques sont mesurées depuis un plateau vide quel que soit l'état reçu :
+un budget de communication qui diminue à mesure qu'on joue ne veut rien dire.
+
+### D29. Pas de rechargement à chaud du contenu de développement
+
+`docs/architecture.md` section 6 mentionne un hot reload de `content/dev`.
+Les définitions sont mises en cache pour la durée du process ; un changement
+de contenu demande un redémarrage. À faire si l'itération sur le contenu
+devient pénible.
+
+---
+
 ## Environnement
 
 - **pnpm** n'était pas installé et `corepack enable` demande l'élévation sous

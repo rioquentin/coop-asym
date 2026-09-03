@@ -1,5 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "@coop/shared";
+import {
+  ROOM_CODE_LENGTH,
+  isRoomCode,
+  normalizeRoomCode,
+  type Action,
+  type GridView,
+  type LegendView,
+} from "@coop/shared";
 import { useGame, type Feedback, type Game, type Snapshot } from "./net/useGame";
 
 export function App() {
@@ -25,13 +32,11 @@ function Session({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
     return <Fin onLeave={game.leaveRoom} />;
   }
   if (snapshot.phase === "PLAYING" && game.view) {
-    return (
-      <Poste
-        view={game.view}
-        feedback={game.feedback}
-        onAct={game.act}
-        onLeave={game.leaveRoom}
-      />
+    const commun = { feedback: game.feedback, onAct: game.act };
+    return game.view.kind === "grid" ? (
+      <Plateau view={game.view} {...commun} onLeave={game.leaveRoom} />
+    ) : (
+      <Registre view={game.view} {...commun} onLeave={game.leaveRoom} />
     );
   }
   return <Lobby snapshot={snapshot} onLeave={game.leaveRoom} />;
@@ -141,62 +146,141 @@ function Lobby({
   );
 }
 
+interface PosteProps {
+  feedback: Feedback | null;
+  onAct: (action: Action) => void;
+  onLeave: () => void;
+}
+
 /**
- * Le poste de travail : la moitie du dispositif que CE joueur a sous les yeux.
+ * Poste de A : les glyphes et les cases.
  *
- * Le composant ne connait que `view`. Il n'a aucun moyen de savoir ce que voit
- * l'autre, ni si son geste rapproche de la fin — c'est le serveur qui repond.
+ * A ne sait pas ce que ses glyphes veulent dire, ni dans quel ordre ils vont.
+ * Rien dans ce composant ne peut le lui apprendre : il ne recoit que `view`.
  */
-function Poste({
+function Plateau({
   view,
   feedback,
   onAct,
   onLeave,
-}: {
-  view: Game["view"];
-  feedback: Feedback | null;
-  onAct: Game["act"];
-  onLeave: () => void;
-}) {
-  if (!view) return null;
+}: PosteProps & { view: GridView }) {
+  const [choisi, setChoisi] = useState<number | null>(null);
+
+  const estPose = (index: number): boolean =>
+    view.slots.includes(view.tray[index] ?? null);
+
+  function cliquerCase(position: number): void {
+    if (view.slots[position] !== null) {
+      onAct({ type: "clear", slot: position });
+      return;
+    }
+    if (choisi === null) return;
+    onAct({ type: "place", from: choisi, to: position });
+    setChoisi(null);
+  }
 
   return (
     <main className="sheet">
-      <h1>{view.kind === "button" ? "Commutateur" : "Voyant"}</h1>
+      <h1>Planche</h1>
+      <p className="muted">
+        Choisissez un glyphe, puis la case ou le porter. Cliquez une case
+        remplie pour la vider.
+      </p>
 
-      {view.kind === "button" ? (
-        <>
-          <p className="muted">
-            Le commutateur n'indique rien. Son effet se lit ailleurs.
-          </p>
+      <p className="label">Glyphes</p>
+      <div className="rangee">
+        {view.tray.map((glyphe, index) => (
           <button
+            key={glyphe}
             type="button"
-            className="primary"
-            onClick={() => onAct({ type: "press" })}
+            className={`glyphe${choisi === index ? " choisi" : ""}`}
+            disabled={estPose(index)}
+            onClick={() => setChoisi(index)}
           >
-            Actionner
+            {glyphe}
           </button>
-        </>
-      ) : (
-        <>
-          <p className="muted">
-            Le voyant ne dit pas d'ou vient son courant.
-          </p>
-          <p className={view.lit ? "lampe allumee" : "lampe"}>
-            {view.lit ? "ALLUME" : "ETEINT"}
-          </p>
+        ))}
+      </div>
+
+      <p className="label">Cases</p>
+      <div className="rangee">
+        {view.slots.map((glyphe, position) => (
           <button
+            key={position}
             type="button"
-            className="primary"
-            onClick={() => onAct({ type: "confirm" })}
+            className={`case${glyphe ? " remplie" : ""}`}
+            onClick={() => cliquerCase(position)}
           >
-            Consigner
+            <span className="rang">{position + 1}</span>
+            {glyphe ?? " "}
           </button>
-        </>
-      )}
+        ))}
+      </div>
 
       <FeedbackLine feedback={feedback} />
+      <button type="button" onClick={onLeave}>
+        Quitter
+      </button>
+    </main>
+  );
+}
 
+/**
+ * Poste de B : le sens des glyphes et le releve a obtenir.
+ *
+ * B sait quoi mettre ou. Il ne voit pas la planche de A, donc il ne peut pas
+ * designer un glyphe par sa position : il doit le decrire.
+ */
+function Registre({
+  view,
+  feedback,
+  onAct,
+  onLeave,
+}: PosteProps & { view: LegendView }) {
+  const sensPose = new Map(view.legend);
+
+  return (
+    <main className="sheet">
+      <h1>Registre</h1>
+      <p className="muted">
+        Vous seul avez le sens des glyphes et l'ordre du releve. Vous ne pouvez
+        rien poser.
+      </p>
+
+      <p className="label">Releve attendu</p>
+      <ol className="releve">
+        {view.target.map((sens, position) => {
+          const pose = view.slots[position];
+          const sensPoseIci = pose ? sensPose.get(pose) : undefined;
+          const juste = sensPoseIci === sens;
+          return (
+            <li key={position} className={juste ? "juste" : undefined}>
+              <span className="attendu">{sens}</span>
+              <span className="pose">{pose ?? "—"}</span>
+            </li>
+          );
+        })}
+      </ol>
+
+      <p className="label">Legende</p>
+      <ul className="legende">
+        {view.legend.map(([glyphe, sens]) => (
+          <li key={glyphe}>
+            <span className="glyphe-nom">{glyphe}</span>
+            <span className="sens">{sens}</span>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        className="primary"
+        onClick={() => onAct({ type: "validate" })}
+      >
+        Consigner
+      </button>
+
+      <FeedbackLine feedback={feedback} />
       <button type="button" onClick={onLeave}>
         Quitter
       </button>
@@ -210,9 +294,7 @@ function Poste({
  */
 function FeedbackLine({ feedback }: { feedback: Feedback | null }) {
   if (!feedback) return <p className="phase">&nbsp;</p>;
-  if (feedback.kind === "accepted") {
-    return <p className="phase">Consigne.</p>;
-  }
+  if (feedback.kind === "accepted") return <p className="phase">Enregistre.</p>;
   return <p className="phase error">{feedback.hint ?? "Refuse."}</p>;
 }
 
@@ -220,9 +302,7 @@ function Fin({ onLeave }: { onLeave: () => void }) {
   return (
     <main className="sheet">
       <h1>Dossier clos</h1>
-      <p className="muted">
-        La boucle a tenu : une intention, un serveur, deux vues distinctes.
-      </p>
+      <p className="muted">Le releve est conforme.</p>
       <button type="button" onClick={onLeave}>
         Quitter
       </button>

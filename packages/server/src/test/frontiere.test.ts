@@ -43,11 +43,14 @@ function imports(chemin: string): string[] {
 
 /**
  * Ce qu'un module importe par le client ne doit jamais toucher.
- * `solve` et le moteur d'enigmes s'y ajouteront au jalon 3.
+ *
+ * Le moteur d'enigmes (`solve`, `ambiguites`, `actionsPossibles`) et le
+ * loader de contenu vivent tous sous ces chemins.
  */
 const INTERDITS = [
   "@coop/server",
   "content/prod",
+  "content/loader",
   "/puzzles/",
   "../server",
 ];
@@ -79,6 +82,19 @@ describe("frontiere client / serveur", () => {
             `${fichier} importe ${specificateur}`,
           ).toBe(false);
         }
+      }
+    }
+  });
+
+  it("aucune source client ne sort de son paquet", () => {
+    // Un import qui remonte au-dessus de packages/client atteint le serveur
+    // par un autre chemin que son nom. Personne ne le voit venir en revue.
+    for (const fichier of fichiersClient) {
+      for (const specificateur of imports(fichier)) {
+        expect(
+          specificateur.startsWith("../../"),
+          `${fichier} remonte hors du paquet : ${specificateur}`,
+        ).toBe(false);
       }
     }
   });
