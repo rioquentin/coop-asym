@@ -1,6 +1,12 @@
-import type { Action, PuzzleMetrics, Role, View } from "@coop/shared";
+import type { Action, Glyphe, PuzzleMetrics, Role, View } from "@coop/shared";
 import type { PuzzleDefinition } from "../../content/types";
 import { decaler, melanger, rngDepuis } from "../rng";
+import {
+  MARQUES_MAX,
+  tracerGlyphe,
+  tropProches,
+  type CompositionGlyphe,
+} from "./glyphes";
 import type {
   ActionOutcome,
   Feedback,
@@ -44,6 +50,11 @@ interface LexiconContent {
   legend: Record<string, string>;
   slots: number;
   targetOrder: string[];
+  /**
+   * Composition de chaque glyphe. Absente du contenu de developpement, ou
+   * les identifiants sont lisibles et servent eux-memes d'affichage.
+   */
+  traces?: Record<string, CompositionGlyphe>;
 }
 
 /**
@@ -102,7 +113,34 @@ function lireContenu(definition: PuzzleDefinition): LexiconContent {
     );
   }
 
-  return { glyphs, legend, slots, targetOrder };
+  const traces = brut.traces;
+  if (traces !== undefined) {
+    for (const glyphe of glyphs) {
+      const composition = traces[glyphe];
+      if (!composition) {
+        return echec("content.traces ne couvre pas tous les glyphes declares");
+      }
+      if (composition.marques.length > MARQUES_MAX) {
+        return echec(`content.traces : un glyphe porte plus de ${MARQUES_MAX} marques`);
+      }
+      // Leve si le socle ou une marque n'existe pas.
+      tracerGlyphe(composition);
+    }
+
+    // Deux glyphes qu'on ne peut pas distinguer a l'oral transforment
+    // l'enigme en loterie. docs/puzzle-spec.md section 6.
+    for (let i = 0; i < glyphs.length; i++) {
+      for (let j = i + 1; j < glyphs.length; j++) {
+        const a = traces[glyphs[i] as string] as CompositionGlyphe;
+        const b = traces[glyphs[j] as string] as CompositionGlyphe;
+        if (tropProches(a, b)) {
+          return echec("content.traces : deux glyphes sont indiscernables a l'oral");
+        }
+      }
+    }
+  }
+
+  return { glyphs, legend, slots, targetOrder, ...(traces ? { traces } : {}) };
 }
 
 function refus(hint: string): Feedback {
@@ -120,10 +158,22 @@ export function creerModuleLexique(
     .map((glyphe) => [glyphe, contenu.legend[glyphe] as string]);
   const sensDe = new Map(legende);
 
-  /** Le glyphe pose dans chaque case, en noms. Base des deux vues. */
-  const casesEnGlyphes = (instance: LexiconInstance): (string | null)[] =>
+  /**
+   * Le glyphe tel que le client le recoit : un identifiant opaque et, quand
+   * le contenu en fournit un, son trace. Jamais de nom.
+   */
+  const glyphes = new Map<string, Glyphe>(
+    contenu.glyphs.map((id) => {
+      const composition = contenu.traces?.[id];
+      return [id, composition ? { id, d: tracerGlyphe(composition) } : { id }];
+    }),
+  );
+  const glypheDe = (id: string): Glyphe => glyphes.get(id) ?? { id };
+
+  /** Le glyphe pose dans chaque case. Base des deux vues. */
+  const casesEnGlyphes = (instance: LexiconInstance): (Glyphe | null)[] =>
     instance.slots.map((index) =>
-      index === null ? null : (instance.tray[index] as string),
+      index === null ? null : glypheDe(instance.tray[index] as string),
     );
 
   const disposeCorrectement = (instance: LexiconInstance): boolean =>
@@ -154,13 +204,15 @@ export function creerModuleLexique(
       if (role === "A") {
         // Ni la legende, ni la cible : A ne sait meme pas ce que veulent dire
         // les glyphes qu'il manipule.
-        return { kind: "grid", tray: [...instance.tray], slots };
+        return { kind: "grid", tray: instance.tray.map(glypheDe), slots };
       }
 
       // Pas de `tray` : B sait quoi mettre ou, sans savoir ou le prendre.
       return {
         kind: "legend",
-        legend: instance.legend.map(([g, s]) => [g, s] as [string, string]),
+        legend: instance.legend.map(
+          ([g, s]) => [glypheDe(g), s] as [Glyphe, string],
+        ),
         target: instance.target.map((glyphe) => sensDe.get(glyphe) as string),
         slots,
       };

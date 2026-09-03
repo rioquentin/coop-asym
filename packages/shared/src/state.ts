@@ -26,6 +26,8 @@ export const GameState = schema(
     code: t.string(),
     /** WAITING | PLAYING | PAUSED | FINISHED. */
     phase: t.string(),
+    /** Numero de la salle en cours. 0 tant que la partie n'a pas commence. */
+    room: t.number(),
     /** Indexe par sessionId. */
     players: t.map(PlayerState),
   },

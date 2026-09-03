@@ -3,11 +3,22 @@ import {
   ROOM_CODE_LENGTH,
   isRoomCode,
   normalizeRoomCode,
+  DIRECTIONS,
   type Action,
+  type Direction,
+  type Glyphe,
   type GridView,
   type LegendView,
+  type PlanView,
+  type PosteView,
 } from "@coop/shared";
-import { useGame, type Feedback, type Game, type Snapshot } from "./net/useGame";
+import {
+  useGame,
+  type Feedback,
+  type Game,
+  type Salle,
+  type Snapshot,
+} from "./net/useGame";
 
 export function App() {
   const game = useGame();
@@ -32,12 +43,21 @@ function Session({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
     return <Fin onLeave={game.leaveRoom} />;
   }
   if (snapshot.phase === "PLAYING" && game.view) {
-    const commun = { feedback: game.feedback, onAct: game.act };
-    return game.view.kind === "grid" ? (
-      <Plateau view={game.view} {...commun} onLeave={game.leaveRoom} />
-    ) : (
-      <Registre view={game.view} {...commun} onLeave={game.leaveRoom} />
-    );
+    const commun = {
+      feedback: game.feedback,
+      salle: game.salle,
+      onAct: game.act,
+    };
+    switch (game.view.kind) {
+      case "grid":
+        return <Plateau view={game.view} {...commun} onLeave={game.leaveRoom} />;
+      case "legend":
+        return <Registre view={game.view} {...commun} onLeave={game.leaveRoom} />;
+      case "plan":
+        return <Plan view={game.view} {...commun} onLeave={game.leaveRoom} />;
+      case "poste":
+        return <Aveugle view={game.view} {...commun} onLeave={game.leaveRoom} />;
+    }
   }
   return <Lobby snapshot={snapshot} onLeave={game.leaveRoom} />;
 }
@@ -146,10 +166,51 @@ function Lobby({
   );
 }
 
+/**
+ * Le trace d'un glyphe. Aucun texte : la world bible interdit de legender un
+ * glyphe, le duo doit inventer ses propres noms.
+ *
+ * Le contenu de developpement n'a pas de trace ; on retombe alors sur
+ * l'identifiant, qui y est volontairement lisible.
+ */
+function TraceGlyphe({ glyphe }: { glyphe: Glyphe }) {
+  if (!glyphe.d) return <span className="glyphe-texte">{glyphe.id}</span>;
+  return (
+    <svg className="trace" viewBox="0 0 100 100" aria-hidden="true">
+      <path
+        d={glyphe.d}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 interface PosteProps {
   feedback: Feedback | null;
+  salle: Salle | null;
   onAct: (action: Action) => void;
   onLeave: () => void;
+}
+
+/**
+ * L'habillage de la salle : son nom et son texte d'ambiance.
+ *
+ * Il ne porte jamais d'indice de resolution (world bible section 5), donc un
+ * joueur qui ne le lit pas n'est pas puni. Il est identique pour les deux
+ * roles : c'est du decor, pas de l'information.
+ */
+function Ambiance({ salle }: { salle: Salle | null }) {
+  if (!salle?.label && !salle?.ambient) return null;
+  return (
+    <header className="ambiance">
+      {salle.label && <p className="salle">{salle.label}</p>}
+      {salle.ambient && <p className="ambiant">{salle.ambient}</p>}
+    </header>
+  );
 }
 
 /**
@@ -161,13 +222,14 @@ interface PosteProps {
 function Plateau({
   view,
   feedback,
+  salle,
   onAct,
   onLeave,
 }: PosteProps & { view: GridView }) {
   const [choisi, setChoisi] = useState<number | null>(null);
 
   const estPose = (index: number): boolean =>
-    view.slots.includes(view.tray[index] ?? null);
+    view.slots.some((pose) => pose?.id === view.tray[index]?.id);
 
   function cliquerCase(position: number): void {
     if (view.slots[position] !== null) {
@@ -181,6 +243,7 @@ function Plateau({
 
   return (
     <main className="sheet">
+      <Ambiance salle={salle} />
       <h1>Planche</h1>
       <p className="muted">
         Choisissez un glyphe, puis la case ou le porter. Cliquez une case
@@ -191,13 +254,13 @@ function Plateau({
       <div className="rangee">
         {view.tray.map((glyphe, index) => (
           <button
-            key={glyphe}
+            key={glyphe.id}
             type="button"
             className={`glyphe${choisi === index ? " choisi" : ""}`}
             disabled={estPose(index)}
             onClick={() => setChoisi(index)}
           >
-            {glyphe}
+            <TraceGlyphe glyphe={glyphe} />
           </button>
         ))}
       </div>
@@ -212,7 +275,7 @@ function Plateau({
             onClick={() => cliquerCase(position)}
           >
             <span className="rang">{position + 1}</span>
-            {glyphe ?? " "}
+            {glyphe ? <TraceGlyphe glyphe={glyphe} /> : null}
           </button>
         ))}
       </div>
@@ -234,13 +297,17 @@ function Plateau({
 function Registre({
   view,
   feedback,
+  salle,
   onAct,
   onLeave,
 }: PosteProps & { view: LegendView }) {
-  const sensPose = new Map(view.legend);
+  const sensParGlyphe = new Map(
+    view.legend.map(([glyphe, sens]) => [glyphe.id, sens]),
+  );
 
   return (
     <main className="sheet">
+      <Ambiance salle={salle} />
       <h1>Registre</h1>
       <p className="muted">
         Vous seul avez le sens des glyphes et l'ordre du releve. Vous ne pouvez
@@ -251,12 +318,13 @@ function Registre({
       <ol className="releve">
         {view.target.map((sens, position) => {
           const pose = view.slots[position];
-          const sensPoseIci = pose ? sensPose.get(pose) : undefined;
-          const juste = sensPoseIci === sens;
+          const juste = pose ? sensParGlyphe.get(pose.id) === sens : false;
           return (
             <li key={position} className={juste ? "juste" : undefined}>
               <span className="attendu">{sens}</span>
-              <span className="pose">{pose ?? "—"}</span>
+              <span className="pose">
+                {pose ? <TraceGlyphe glyphe={pose} /> : "—"}
+              </span>
             </li>
           );
         })}
@@ -265,8 +333,10 @@ function Registre({
       <p className="label">Legende</p>
       <ul className="legende">
         {view.legend.map(([glyphe, sens]) => (
-          <li key={glyphe}>
-            <span className="glyphe-nom">{glyphe}</span>
+          <li key={glyphe.id}>
+            <span className="glyphe-nom">
+              <TraceGlyphe glyphe={glyphe} />
+            </span>
             <span className="sens">{sens}</span>
           </li>
         ))}
@@ -279,6 +349,161 @@ function Registre({
       >
         Consigner
       </button>
+
+      <FeedbackLine feedback={feedback} />
+      <button type="button" onClick={onLeave}>
+        Quitter
+      </button>
+    </main>
+  );
+}
+
+/** Cote d'une case du plan, en unites SVG. */
+const COTE = 44;
+
+/**
+ * Poste de A en salle 2 : le plan, et pas son partenaire.
+ *
+ * A voit chaque mur et sait ou est le depot. Rien ici ne lui dit ou se trouve
+ * B — c'est tout le probleme, et c'est ce qui l'oblige a ecouter.
+ */
+function Plan({
+  view,
+  feedback,
+  salle,
+  onAct,
+  onLeave,
+}: PosteProps & { view: PlanView }) {
+  return (
+    <main className="sheet">
+      <Ambiance salle={salle} />
+      <h1>Plan</h1>
+      <p className="muted">
+        Vous voyez le lieu, pas votre partenaire. Cliquez une case pour y poser
+        le jalon : il le sentira sous ses pieds en y passant.
+      </p>
+
+      <svg
+        className="plan"
+        viewBox={[0, 0, view.largeur * COTE, view.hauteur * COTE].join(" ")}
+      >
+        {view.murs.map((murs, index) => {
+          const x = index % view.largeur;
+          const y = Math.floor(index / view.largeur);
+          const gauche = x * COTE;
+          const haut = y * COTE;
+          const droite = gauche + COTE;
+          const bas = haut + COTE;
+          return (
+            <g key={index}>
+              <rect
+                className="case-plan"
+                x={gauche}
+                y={haut}
+                width={COTE}
+                height={COTE}
+                onClick={() => onAct({ type: "jalonner", x, y })}
+              />
+              {view.depot.x === x && view.depot.y === y && (
+                <rect
+                  className="depot"
+                  x={gauche + 13}
+                  y={haut + 13}
+                  width={COTE - 26}
+                  height={COTE - 26}
+                />
+              )}
+              {view.jalon?.x === x && view.jalon.y === y && (
+                <circle
+                  className="jalon"
+                  cx={gauche + COTE / 2}
+                  cy={haut + COTE / 2}
+                  r={4}
+                />
+              )}
+              {murs.includes("nord") && (
+                <line className="mur" x1={gauche} y1={haut} x2={droite} y2={haut} />
+              )}
+              {murs.includes("ouest") && (
+                <line className="mur" x1={gauche} y1={haut} x2={gauche} y2={bas} />
+              )}
+              {murs.includes("sud") && (
+                <line className="mur" x1={gauche} y1={bas} x2={droite} y2={bas} />
+              )}
+              {murs.includes("est") && (
+                <line className="mur" x1={droite} y1={haut} x2={droite} y2={bas} />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+
+      <button
+        type="button"
+        className="primary"
+        onClick={() => onAct({ type: "sceller" })}
+      >
+        Sceller le depot
+      </button>
+
+      <FeedbackLine feedback={feedback} />
+      <button type="button" onClick={onLeave}>
+        Quitter
+      </button>
+    </main>
+  );
+}
+
+const LIBELLE_DIRECTION: Record<Direction, string> = {
+  nord: "Nord",
+  est: "Est",
+  sud: "Sud",
+  ouest: "Ouest",
+};
+
+/**
+ * Poste de B en salle 2 : une case, et les cotes par lesquels on en sort.
+ *
+ * Ni plan, ni coordonnees. B sait quand il est arrive, jamais ou il est.
+ */
+function Aveugle({
+  view,
+  feedback,
+  salle,
+  onAct,
+  onLeave,
+}: PosteProps & { view: PosteView }) {
+  return (
+    <main className="sheet">
+      <Ambiance salle={salle} />
+      <h1>Coursive</h1>
+      <p className="muted">
+        Vous ne voyez que cette case. Decrivez ce que vous avez autour de vous.
+      </p>
+
+      <div className="rose">
+        {DIRECTIONS.map((direction) => {
+          const ouvert = view.ouvertures.includes(direction);
+          return (
+            <button
+              key={direction}
+              type="button"
+              className={`issue ${direction}${ouvert ? "" : " muree"}`}
+              disabled={!ouvert}
+              onClick={() => onAct({ type: "avancer", direction })}
+            >
+              {LIBELLE_DIRECTION[direction]}
+            </button>
+          );
+        })}
+      </div>
+
+      <ul className="sensations">
+        <li className={view.surLeDepot ? "juste" : undefined}>
+          {view.surLeDepot ? "Le sol est dalle. C'est le depot." : "Le sol est nu."}
+        </li>
+        {view.surLeJalon && <li className="juste">Un jalon sous vos pieds.</li>}
+      </ul>
 
       <FeedbackLine feedback={feedback} />
       <button type="button" onClick={onLeave}>

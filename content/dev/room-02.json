@@ -1,0 +1,40 @@
+{
+  "id": "dev-topologie-triviale",
+  "room": 2,
+  "primitives": ["TOPOLOGIE"],
+  "module": "src/puzzles/topologie/index.ts",
+  "roles": {
+    "A": {
+      "component": "PlanPanel",
+      "canAct": true,
+      "sees": ["largeur", "hauteur", "murs", "depot", "jalon"]
+    },
+    "B": {
+      "component": "PostePanel",
+      "canAct": true,
+      "sees": ["ouvertures", "surLeDepot", "surLeJalon"]
+    }
+  },
+  "budget": {
+    "maxDiscreteElements": 6,
+    "targetExchanges": 7,
+    "targetMinutes": [2, 3]
+  },
+  "failure": {
+    "costSeconds": 0.5,
+    "resetsPuzzle": false,
+    "feedback": "informative"
+  },
+  "dressing": {
+    "roomLabel": "FIXTURE DEV",
+    "ambientText": "Contenu de developpement. Aucune valeur narrative."
+  },
+  "content": {
+    "_note": "FIXTURE. Plan minuscule et sans boucle. Ne jamais copier ce niveau de difficulte dans content/prod.",
+    "largeur": 3,
+    "hauteur": 3,
+    "boucles": 0,
+    "distanceMin": 3,
+    "distanceMax": 4
+  }
+}

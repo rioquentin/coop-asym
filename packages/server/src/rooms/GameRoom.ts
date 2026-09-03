@@ -14,6 +14,7 @@ import {
 } from "@coop/shared";
 import { CHAINE_DES_SALLES } from "../content/chaine";
 import { chargerDefinition } from "../content/loader";
+import type { PuzzleDefinition } from "../content/types";
 import { chargerModule, type OpaquePuzzleModule } from "../puzzles/registry";
 import { allocateRoomCode } from "./roomCode";
 
@@ -36,8 +37,11 @@ export class GameRoom extends Room<{ state: GameState }> {
   /** Minuteur de destruction de la phase courante. Voir armTtl(). */
   private ttlTimer?: TtlTimer;
 
-  /** Le module de la salle en cours. Charge une fois a la creation. */
-  private module?: OpaquePuzzleModule;
+  /** Toute la chaine des salles, chargee une fois a la creation. */
+  private salles: { definition: PuzzleDefinition; module: OpaquePuzzleModule }[] =
+    [];
+  /** Ou en est le duo dans la chaine. */
+  private indexSalle = 0;
 
   /**
    * L'instance d'enigme en cours.
@@ -62,13 +66,18 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.autoDispose = false;
 
     this.roomId = await allocateRoomCode();
-    this.setState(new GameState({ code: this.roomId, phase: "WAITING" }));
+    this.setState(
+      new GameState({ code: this.roomId, phase: "WAITING", room: 0 }),
+    );
 
     // On ne rejoint que par code dicte : pas de listing public.
     await this.setPrivate(true);
 
-    // v1 : chaine lineaire, une seule salle cablee au jalon 3.
-    this.module = chargerModule(chargerDefinition(CHAINE_DES_SALLES[0]));
+    // v1 : chaine lineaire, pas de hub (CLAUDE.md section 6).
+    this.salles = CHAINE_DES_SALLES.map((nom) => {
+      const definition = chargerDefinition(nom);
+      return { definition, module: chargerModule(definition) };
+    });
     this.seed = randomBytes(8).toString("hex");
     logger.info(`[room ${this.roomId}] seed=${this.seed}`);
 
@@ -120,7 +129,9 @@ export class GameRoom extends Room<{ state: GameState }> {
       this.setPhase("PLAYING");
     }
 
-    // Le joueur ne doit rien reperdre : sa vue lui est rendue telle quelle.
+    // Le joueur ne doit rien reperdre : sa salle et sa vue lui sont rendues
+    // telles quelles.
+    this.pushSalle(client);
     this.pushView(client);
   }
 
@@ -179,9 +190,11 @@ export class GameRoom extends Room<{ state: GameState }> {
   ): void {
     const role = this.roleOf(client);
 
+    const salle = this.salleCourante();
+
     if (
       this.state.phase !== "PLAYING" ||
-      !this.module ||
+      !salle ||
       this.instance === undefined ||
       !role
     ) {
@@ -193,7 +206,7 @@ export class GameRoom extends Room<{ state: GameState }> {
       return;
     }
 
-    if (message.puzzleId !== this.module.id) {
+    if (message.puzzleId !== salle.module.id) {
       this.sendTo(client, {
         t: "feedback",
         kind: "rejected",
@@ -202,15 +215,48 @@ export class GameRoom extends Room<{ state: GameState }> {
       return;
     }
 
-    const result = this.module.applyAction(this.instance, role, message.action);
+    const result = salle.module.applyAction(this.instance, role, message.action);
     this.instance = result.instance;
 
     this.sendTo(client, { t: "feedback", ...result.feedback });
 
     if (result.feedback.kind === "accepted") {
       this.pushViews();
-      if (this.module.isSolved(this.instance)) this.finish();
+      if (salle.module.isSolved(this.instance)) this.salleSuivante();
     }
+  }
+
+  /** Salle resolue : on avance dans la chaine, ou on termine. */
+  private salleSuivante(): void {
+    if (this.indexSalle >= this.salles.length - 1) {
+      this.finish();
+      return;
+    }
+    this.indexSalle++;
+    this.commencerSalle();
+  }
+
+  private salleCourante():
+    | { definition: PuzzleDefinition; module: OpaquePuzzleModule }
+    | undefined {
+    return this.salles[this.indexSalle];
+  }
+
+  /**
+   * Pose l'enigme de la salle courante et l'annonce.
+   *
+   * Chaque salle tire son instance d'un seed derive de celui de la partie :
+   * meme partie rejouee, memes salles, dans le meme ordre.
+   */
+  private commencerSalle(): void {
+    const salle = this.salleCourante();
+    if (!salle) return;
+
+    this.instance = salle.module.generate(`${this.seed}-${this.indexSalle}`);
+    this.state.room = salle.definition.room;
+
+    for (const client of this.clients) this.pushSalle(client);
+    this.pushViews();
   }
 
   private finish(): void {
@@ -226,9 +272,28 @@ export class GameRoom extends Room<{ state: GameState }> {
       index++;
     }
 
-    this.instance = this.module?.generate(this.seed);
+    this.indexSalle = 0;
     this.setPhase("PLAYING");
-    this.pushViews();
+    this.commencerSalle();
+  }
+
+  /**
+   * Annonce la salle et son habillage.
+   *
+   * L'habillage est le meme pour les deux joueurs : c'est du decor, pas de
+   * l'information. docs/world-bible.md section 5 interdit qu'il porte le
+   * moindre indice de resolution.
+   */
+  private pushSalle(client: Client): void {
+    const salle = this.salleCourante();
+    if (!salle) return;
+    const dressing = salle.definition.dressing;
+    this.sendTo(client, {
+      t: "roomAdvance",
+      room: salle.definition.room,
+      ...(dressing?.roomLabel ? { label: dressing.roomLabel } : {}),
+      ...(dressing?.ambientText ? { ambient: dressing.ambientText } : {}),
+    });
   }
 
   /** Envoie a chaque joueur SA vue, et rien d'autre. */
@@ -238,13 +303,14 @@ export class GameRoom extends Room<{ state: GameState }> {
 
   private pushView(client: Client): void {
     const role = this.roleOf(client);
-    if (!this.module || this.instance === undefined || !role) return;
+    const salle = this.salleCourante();
+    if (!salle || this.instance === undefined || !role) return;
 
     this.sendTo(client, {
       t: "view",
-      puzzleId: this.module.id,
+      puzzleId: salle.module.id,
       role,
-      view: this.module.viewFor(role, this.instance),
+      view: salle.module.viewFor(role, this.instance),
     });
   }
 

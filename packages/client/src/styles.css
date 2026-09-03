@@ -235,3 +235,138 @@ input:focus {
 .phase.error {
   color: var(--accent);
 }
+
+/*
+ * Le trace d'un glyphe. Contraste plein, aucun grain, aucun flou : c'est
+ * l'element que les joueurs doivent se decrire a l'oral (world bible 6).
+ */
+.trace {
+  display: block;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin: 0 auto;
+}
+
+.glyphe-texte {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.releve .pose .trace,
+.legende .glyphe-nom .trace {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+}
+
+.releve li,
+.legende li {
+  align-items: center;
+}
+
+/*
+ * L'habillage. Il precede le poste de travail et ne doit jamais rivaliser
+ * avec lui : l'accent sature reste reserve a ce qui est actionnable.
+ */
+.ambiance {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--regle);
+}
+
+.salle {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--encre-pale);
+}
+
+.ambiant {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/*
+ * Salle 2. Le plan est de l'information brute : contraste plein, aucun decor
+ * sur ce qui porte du sens (world bible section 6).
+ */
+.plan {
+  display: block;
+  width: 100%;
+  max-width: 18rem;
+  margin: 0.5rem auto 1.5rem;
+}
+
+.case-plan {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.case-plan:hover {
+  fill: rgba(177, 52, 31, 0.08);
+}
+
+.mur {
+  stroke: var(--encre);
+  stroke-width: 3;
+  stroke-linecap: square;
+}
+
+.depot {
+  fill: none;
+  stroke: var(--encre-pale);
+  stroke-width: 2;
+}
+
+.jalon {
+  fill: var(--accent);
+}
+
+.rose {
+  display: grid;
+  grid-template-areas:
+    ".     nord  ."
+    "ouest .     est"
+    ".     sud   .";
+  gap: 0.5rem;
+  justify-items: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.issue {
+  min-width: 5rem;
+  font-size: 0.8rem;
+}
+
+.issue.nord {
+  grid-area: nord;
+}
+
+.issue.est {
+  grid-area: est;
+}
+
+.issue.sud {
+  grid-area: sud;
+}
+
+.issue.ouest {
+  grid-area: ouest;
+}
+
+.issue.muree {
+  border-style: dashed;
+}
+
+.sensations {
+  margin: 0 0 1.5rem;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  color: var(--encre-pale);
+}
+
+.sensations .juste {
+  color: var(--accent);
+}

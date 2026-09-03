@@ -266,7 +266,7 @@ donc la liste des salles ne fuit pas par le bundle.
 
 ### D27. La fixture est lue comme des paramètres, pas comme une instance figée
 
-`content/dev/room-01-fixture.json` donne le jeu de glyphes, la légende, le
+`content/dev/room-01.json` donne le jeu de glyphes, la légende, le
 nombre de cases et un ordre canonique. `generate(seed)` tire de ce matériel
 l'ordre d'affichage **et** l'ordre attendu. Sans ça, `generate` serait
 constant et l'asymétrie n'aurait rien à faire varier.
@@ -282,6 +282,224 @@ un budget de communication qui diminue à mesure qu'on joue ne veut rien dire.
 Les définitions sont mises en cache pour la durée du process ; un changement
 de contenu demande un redémarrage. À faire si l'itération sur le contenu
 devient pénible.
+
+---
+
+## Session 4 — salle 1
+
+### D30. Les glyphes sont composés, pas tirés au hasard
+
+Un glyphe est un **socle** plus une ou deux **marques**, prises dans un petit
+vocabulaire de formes. Des tracés aléatoires tomberaient droit dans
+l'anti-pattern de `docs/puzzle-spec.md` §6 : « le glyphe indescriptible, un
+symbole que personne ne peut nommer sans faire un dessin ». Composé, un glyphe
+se dit en une phrase — et c'est précisément le geste que le jeu demande.
+
+Le vocabulaire de formes est public (`puzzles/lexicon/glyphes.ts`) ; quels
+socles et quelles marques composent une salle donnée ne l'est pas.
+
+`tropProches()` interdit deux glyphes qui ne diffèrent que d'une marque sur
+le même socle : le duo passerait son temps à lever l'ambiguïté au lieu de
+jouer.
+
+### D31. Le contenu de la salle 1 est **tiré par un programme**, jamais écrit à la main
+
+C'est ce qui rend le mur anti-spoil tenable dans cette configuration de
+travail. Tout ce que j'écris passe par un transcript que le propriétaire peut
+relire ; du contenu écrit à la main y serait visible, quelle que soit ma bonne
+volonté. `outils/generer-salle-01.ts` tire donc le contenu depuis
+`crypto.randomBytes` au moment de l'exécution, le valide, le fait passer par
+les quatre obligations, puis le chiffre.
+
+**Le clair n'existe que dans la mémoire du process.** Il n'est jamais écrit sur
+disque, jamais affiché. Personne ne le connaît — moi pas plus que toi.
+
+Ce que le fichier générateur dit de la salle 1 est le cahier des charges, pas
+le contenu : primitive LEXIQUE seule, 6 à 7 glyphes, 2 à 4 minutes. Le
+vocabulaire de significations est copié de `docs/world-bible.md` §4, qui est
+public ; quels mots sont retenus et à quel glyphe ils vont ne l'est pas.
+
+### D32. Un seul nom logique par salle
+
+`content/dev/room-01-fixture.json` devient `content/dev/room-01.json`, et
+`CHAINE_DES_SALLES` porte `"room-01"`. Le loader choisit la fixture ou le
+contenu chiffré selon le mode ; le reste du code ignore lequel il joue. Sans
+ça, la chaîne des salles devrait exister en deux exemplaires.
+
+### D33. Les obligations sont partagées entre les tests et l'outil
+
+`puzzles/obligations.ts` est appelé par `verification.test.ts` **et** par
+`content:verifier`. Le contenu réel doit passer exactement les mêmes
+contrôles que la fixture, et un contrôle qui existe en deux exemplaires finit
+par diverger — ici la divergence serait invisible, puisque personne ne peut
+relire le contenu réel.
+
+### D34. La `CONTENT_KEY` n'est jamais affichée
+
+`content:cle` l'écrit dans `.env` (gitignoré) et n'en dit que l'emplacement.
+Une clé qui passe par un terminal finit dans un historique. Le générateur
+refuse d'écraser une salle existante sans `--remplacer` : sans la clé
+d'origine, un contenu chiffré est définitivement perdu.
+
+### D35. La salle 1 n'a pas d'habillage — et ce n'est pas un oubli
+
+**C'est le point à trancher.** `dressing.ambientText` et `roomLabel` sont
+absents de la salle 1, et la trame narrative des cinq salles n'est pas écrite.
+
+La raison est structurelle, pas technique. Un tirage aléatoire peut produire
+des glyphes et une correspondance ; il ne peut pas produire une trame
+narrative et un retournement *déductible* (`docs/puzzle-spec.md` §3 :
+« le retournement doit être déductible, pas arbitraire »). Cette prose doit
+être écrite. Et tout ce que j'écris passe par un transcript que tu peux relire
+— donc l'écrire ici la brûle.
+
+`CLAUDE.md` §1 est explicite : « Aucune formulation ne rend ça acceptable ».
+Je ne contourne pas la règle en écrivant quand même en te demandant de ne pas
+regarder.
+
+Ce qui est fait respecte d'ailleurs la doctrine du projet : `puzzle-spec.md`
+§7 impose que « la mécanique soit écrite avant l'habillage ». La salle 1 est
+mécaniquement complète et vérifiée. Il lui manque sa peau.
+
+Options, par ordre de préférence :
+
+1. **Un canal séparé.** Je génère la trame dans un process dont tu ne lis pas
+   la sortie — un agent lancé en tâche de fond dont le rapport est chiffré
+   directement dans `content/prod`, sans repasser par la conversation. C'est
+   faisable, mais demande que tu t'engages à ne pas ouvrir ce transcript.
+2. **Un tiers l'écrit.** `PROMPT-KICKOFF.md` prévoit déjà un duo externe pour
+   le QA ; la même personne peut écrire la trame. C'est la seule option où le
+   secret est réellement garanti.
+3. **Habillage procédural.** Je définis l'espace des retournements
+   structurellement valides, le programme en tire un. Personne ne connaît le
+   résultat — mais un retournement tiré au sort risque l'anti-pattern du
+   devinage.
+
+---
+
+## Session 4 (suite) — la trame
+
+### D36. La trame est écrite par un canal séparé
+
+Option 1 de D35, retenue le 3 septembre 2026. Un agent lancé en tâche de fond
+a écrit la trame des cinq salles, le retournement de la salle 5 et l'habillage
+de la salle 1, puis les a chiffrés dans `content/prod`. Son rapport final
+était contraint à six lignes sans contenu.
+
+**La garantie est procédurale, pas technique**, et il faut le dire clairement :
+le transcript de travail de cet agent contient la trame et se trouve sur le
+disque. Ce qui protège le secret, c'est l'engagement du propriétaire à ne pas
+l'ouvrir. Aucun mécanisme ne l'en empêche.
+
+Ce qui est technique, en revanche : `content:habiller` déchiffre la salle **en
+mémoire** et n'y ajoute que la clé `dressing`. L'auteur de la prose n'a donc
+jamais vu la mécanique — les glyphes et leur sens restent inconnus de tout le
+monde, y compris de lui.
+
+### D37. La trame est contrôlée par programme, pas relue
+
+`content:controler-trame` déchiffre en mémoire et ne rend que des verdicts :
+cinq salles numérotées, un libellé et une ambiance par salle, aucune ambiance
+au-dessus de 40 mots, une inversion parmi les deux formes implémentables,
+au moins deux indices, une fin unique — plus deux contrôles lexicaux, l'absence
+de vocabulaire de fantasy générique et l'absence de religion réelle nommée
+(world bible §3 et §4).
+
+C'est la seule façon de vérifier un texte que personne ne relira jamais. Un
+contrôle à l'œil aurait supposé de le lire.
+
+Le champ `inversion.mecanique` ne prend que deux valeurs,
+`ROLES_ECHANGES` ou `LEXIQUE_INVERSE` : une session future implémentera la
+salle 5 en lisant ce champ par programme, sans avoir à afficher le reste.
+
+### D38. `roomAdvance` porte l'habillage
+
+Le message était déclaré dans `docs/architecture.md` §5 avec le seul numéro de
+salle. Il porte maintenant aussi `label` et `ambient`, envoyés à l'entrée en
+`PLAYING` et rendus au retour d'un joueur déconnecté. Sans ça, l'habillage
+existait dans le contenu chiffré mais n'atteignait jamais l'écran.
+
+Il est identique pour les deux rôles : c'est du décor, pas de l'information.
+
+### D39. Les sources en clair sont effacées, pas seulement supprimées
+
+`content:chiffrer` et `content:habiller` écrasent le fichier source par du
+bruit avant de le délier, et refusent une source située dans le dépôt — un
+clair posé dans `content/` le temps d'un commit serait un clair de trop.
+
+Ce n'est pas de la sécurité : un journal de système de fichiers peut en garder
+trace. C'est le même garde-fou que le chiffrement de `content/prod`, rendre
+l'ouverture accidentelle impossible.
+
+---
+
+## Salle 2 — TOPOLOGIE
+
+### D40. Le plan est tiré à chaque partie, pas figé dans le contenu
+
+La salle 1 fige sa correspondance glyphe/sens dans `content/prod` ; la salle 2
+ne fige que des paramètres — taille, nombre de boucles, distance visée — et
+construit son labyrinthe depuis le seed de la partie.
+
+C'est mieux ici, et pour deux raisons. Une partie rejouée donne un autre plan,
+donc personne ne peut l'apprendre par cœur. Et il n'y a rien à protéger dans
+le contenu : le secret n'existe plus, au lieu d'être gardé.
+
+### D41. Le jalon donne à A une action, pas seulement la parole
+
+`schema/puzzle.schema.json` impose `canAct: true` pour les deux rôles, contre
+l'anti-pattern du goulot. En topologie, A tient le plan et parle — sans plus,
+il ne serait qu'une voix. Il peut donc poser un **jalon** sur une case ; B le
+sent sous ses pieds en y passant.
+
+C'est l'outil de désambiguïsation du duo quand deux endroits se ressemblent,
+et c'est ce qui fait de A un joueur plutôt qu'un lecteur à voix haute.
+
+### D42. B sait quand il est arrivé — sinon `sceller` devient un oracle
+
+Tentation naturelle : que B ne perçoive que les murs, et que A doive déduire
+son arrivée. Ça rend le sceau d'A vraiment risqué… et ça ouvre une porte
+dérobée. A pourrait faire errer B au hasard en scellant après chaque pas : le
+refus lui dirait « pas encore », l'acceptation « c'est là ». Seize cases,
+seize essais, l'énigme contournée. C'est l'anti-pattern du devinage.
+
+B sait donc qu'il est sur le dépôt quand il y est. Le sceau d'A confirme ce
+que B vient d'annoncer, il ne le découvre pas — donc il n'apprend rien.
+
+### D43. Le critère de rejet se mesure sur les champs que la solution touche
+
+**Trouvé en faisant tourner l'obligation 2 sur un deuxième module.** Mon
+critère comparait l'état gagnant atteint à l'état canonique **en entier**. En
+topologie, une marche au hasard peut poser un jalon en chemin : l'état diffère
+alors du canonique par un champ qui ne conditionne pas la victoire, et
+77 seeds sur 500 étaient signalés à tort.
+
+Le critère porte maintenant sur les seuls champs que `solve()` modifie —
+déduits en comparant l'instance de départ à l'instance résolue. Ce que la
+solution ne touche pas est incident par construction.
+
+Un module dont l'instance porterait un champ décisif que `solve()` ne modifie
+jamais échapperait encore à ce contrôle. Le cas est théorique ; il est noté
+ici pour qu'il ne soit pas une surprise.
+
+### D44. Chaque salle tire son instance d'un seed dérivé
+
+Une partie a un seed ; la salle *n* utilise `<seed>-<n>`. Même partie rejouée,
+mêmes salles dans le même ordre — et un seed loggé reste loggable, il ne
+révèle rien sans les générateurs, qui sont côté serveur.
+
+### D45. `room` entre dans l'état public
+
+`docs/architecture.md` §2 prévoyait « salle courante » dans l'état partagé ;
+le champ existait dans le document et pas dans le code. Il y est maintenant,
+et le garde-fou des champs publics l'inclut.
+
+### D46. Chaque vue déclare les champs qu'elle a le droit de porter
+
+Le harnais vérifie, pour les 500 seeds et les deux rôles, que les clés d'une
+vue sont exactement celles attendues. Ajouter un champ à une vue oblige donc à
+l'ajouter aussi dans le test — c'est-à-dire à se demander une deuxième fois si
+ce champ ne donne pas à un rôle ce qui appartient à l'autre.
 
 ---
 

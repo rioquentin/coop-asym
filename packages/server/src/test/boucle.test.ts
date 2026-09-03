@@ -7,8 +7,10 @@ import {
   ROOM_NAME,
   type Action,
   type ClientMessage,
+  type Direction,
   type GridView,
   type LegendView,
+  type PosteView,
   type ServerMessage,
 } from "@coop/shared";
 import { CHAINE_DES_SALLES } from "../content/chaine";
@@ -31,6 +33,7 @@ interface Poste {
   room: Room<unknown, GameState>;
   journal: Journal[];
   vue(): Extract<ServerMessage, { t: "view" }>["view"] | undefined;
+  nbVues(): number;
   dernierFeedback(): Extract<ServerMessage, { t: "feedback" }> | undefined;
   aRecuFin(): boolean;
   agir(action: Action): void;
@@ -62,6 +65,9 @@ function observer(room: Room<unknown, GameState>): Poste {
         .filter((m) => m.t === "view")
         .at(-1)?.view;
     },
+    nbVues() {
+      return messages().filter((m) => m.t === "view").length;
+    },
     dernierFeedback() {
       return messages()
         .filter((m) => m.t === "feedback")
@@ -71,9 +77,14 @@ function observer(room: Room<unknown, GameState>): Poste {
       return messages().some((m) => m.t === "finished");
     },
     agir(action: Action) {
+      // Comme le vrai client : on renvoie l'identifiant que le serveur a
+      // donne avec la derniere vue. Aucun identifiant n'est connu d'avance.
+      const puzzleId = messages()
+        .filter((m) => m.t === "view")
+        .at(-1)?.puzzleId;
       const message: ClientMessage = {
         t: "action",
-        puzzleId: PUZZLE_ID,
+        puzzleId: puzzleId ?? PUZZLE_ID,
         action,
       };
       room.send(CLIENT_MESSAGE, message);
@@ -111,13 +122,90 @@ async function ouvrirPartie(): Promise<{ a: Poste; b: Poste }> {
 
 /** Joue la partie comme un duo : en croisant les deux vues, et elles seules. */
 function planDuDuo(vueA: GridView, vueB: LegendView): Action[] {
-  const glypheDuSens = new Map(
-    vueB.legend.map(([glyphe, sens]) => [sens, glyphe]),
+  const idParSens = new Map(
+    vueB.legend.map(([glyphe, sens]) => [sens, glyphe.id]),
   );
   return vueB.target.map((sens, position) => {
-    const glyphe = glypheDuSens.get(sens) as string;
-    return { type: "place", from: vueA.tray.indexOf(glyphe), to: position };
+    const id = idParSens.get(sens);
+    return {
+      type: "place",
+      from: vueA.tray.findIndex((glyphe) => glyphe.id === id),
+      to: position,
+    };
   });
+}
+
+/**
+ * Fait resoudre la salle 1 par le duo, en ne croisant que les deux vues.
+ */
+async function resoudreLeLexique(a: Poste, b: Poste): Promise<void> {
+  const plan = planDuDuo(a.vue() as GridView, b.vue() as LegendView);
+  for (const action of plan) {
+    a.agir(action);
+    await until(() => a.dernierFeedback()?.kind === "accepted");
+  }
+  b.agir({ type: "validate" });
+}
+
+/**
+ * Fait resoudre la salle 2. B marche a l'aveugle — le test n'a pas plus
+ * d'information que lui — et A scelle quand B annonce etre arrive.
+ *
+ * B explore en profondeur en tenant sa position a l'estime : il ne sait pas
+ * ou il est sur le plan, mais il sait d'ou il vient. C'est exactement ce
+ * qu'un joueur fait, et ca couvre un plan connexe en un nombre de pas borne.
+ */
+async function resoudreLaTopologie(a: Poste, b: Poste): Promise<void> {
+  const INVERSE: Record<Direction, Direction> = {
+    nord: "sud",
+    sud: "nord",
+    est: "ouest",
+    ouest: "est",
+  };
+  const DELTA: Record<Direction, [number, number]> = {
+    nord: [0, -1],
+    est: [1, 0],
+    sud: [0, 1],
+    ouest: [-1, 0],
+  };
+
+  let x = 0;
+  let y = 0;
+  const visitees = new Set<string>();
+  const parcours: Direction[] = [];
+
+  const avancer = async (direction: Direction): Promise<void> => {
+    const avant = b.nbVues();
+    b.agir({ type: "avancer", direction });
+    await until(() => b.nbVues() > avant);
+    x += DELTA[direction][0];
+    y += DELTA[direction][1];
+  };
+
+  for (let pas = 0; pas < 200; pas++) {
+    const vue = b.vue() as PosteView;
+    if (vue.surLeDepot) {
+      a.agir({ type: "sceller" });
+      return;
+    }
+    visitees.add(`${x},${y}`);
+
+    const inexploree = vue.ouvertures.find((direction) => {
+      const [dx, dy] = DELTA[direction];
+      return !visitees.has(`${x + dx},${y + dy}`);
+    });
+
+    if (inexploree) {
+      parcours.push(inexploree);
+      await avancer(inexploree);
+      continue;
+    }
+
+    const retour = parcours.pop();
+    if (!retour) throw new Error("plan explore sans trouver le depot");
+    await avancer(INVERSE[retour]);
+  }
+  throw new Error("la salle 2 n'a pas ete atteinte en 200 pas");
 }
 
 beforeAll(async () => {
@@ -195,13 +283,13 @@ describe("boucle reseau", () => {
       Action,
       { type: "place" }
     >;
-    const glypheAttendu = vueA.tray[premier.from];
+    const idAttendu = vueA.tray[premier.from]?.id;
 
     a.agir(premier);
     await until(
-      () => (b.vue() as LegendView).slots[premier.to] === glypheAttendu,
+      () => (b.vue() as LegendView).slots[premier.to]?.id === idAttendu,
     );
-    expect((a.vue() as GridView).slots[premier.to]).toBe(glypheAttendu);
+    expect((a.vue() as GridView).slots[premier.to]?.id).toBe(idAttendu);
   });
 
   it("refuse l'intention qui n'est pas celle de son role", async () => {
@@ -241,12 +329,36 @@ describe("boucle reseau", () => {
     }
 
     // Le plateau est bon mais personne n'a encore consigne.
-    expect(a.aRecuFin()).toBe(false);
+    expect(a.room.state.room).toBe(1);
 
     b.agir({ type: "validate" });
+    // La salle 1 resolue ouvre la salle 2, elle ne termine pas la partie.
+    await until(() => a.room.state.room === 2);
+  });
+
+  it("enchaine sur la salle 2 en changeant les deux vues", async () => {
+    const { a, b } = await ouvrirPartie();
+
+    await resoudreLeLexique(a, b);
+    await until(() => a.room.state.room === 2);
+    await until(() => a.vue()?.kind === "plan" && b.vue()?.kind === "poste");
+
+    // La primitive a change : plus un glyphe a l'ecran, de part et d'autre.
+    expect(JSON.stringify(a.journal)).toContain("murs");
+    expect(JSON.stringify(b.vue())).not.toContain("murs");
+    expect(a.aRecuFin()).toBe(false);
+  });
+
+  it("termine la partie quand la derniere salle tombe", async () => {
+    const { a, b } = await ouvrirPartie();
+
+    await resoudreLeLexique(a, b);
+    await until(() => a.vue()?.kind === "plan" && b.vue()?.kind === "poste");
+
+    await resoudreLaTopologie(a, b);
     await until(() => a.aRecuFin() && b.aRecuFin());
     await until(() => a.room.state.phase === "FINISHED");
-  });
+  }, 30_000);
 
   it("rend a un revenant la vue qu'il avait laissee", async () => {
     const clientB = new Client(ENDPOINT);
@@ -267,10 +379,10 @@ describe("boucle reseau", () => {
       a.vue() as GridView,
       b.vue() as LegendView,
     )[0] as Extract<Action, { type: "place" }>;
-    const glypheAttendu = (a.vue() as GridView).tray[premier.from];
+    const idAttendu = (a.vue() as GridView).tray[premier.from]?.id;
     a.agir(premier);
     await until(
-      () => (b.vue() as LegendView).slots[premier.to] === glypheAttendu,
+      () => (b.vue() as LegendView).slots[premier.to]?.id === idAttendu,
     );
 
     const jeton = roomB.reconnectionToken;
@@ -284,8 +396,9 @@ describe("boucle reseau", () => {
     await until(() => roomA.state.phase === "PLAYING");
     // Le joueur ne doit rien reperdre : le glyphe est toujours pose.
     await until(
-      () => (b.vue() as LegendView | undefined)?.slots[premier.to] ===
-        glypheAttendu,
+      () =>
+        (b.vue() as LegendView | undefined)?.slots[premier.to]?.id ===
+        idAttendu,
     );
   });
 
