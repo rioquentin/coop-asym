@@ -31,6 +31,18 @@ export interface PuzzleMetrics {
 // ---------------------------------------------------------------------------
 
 /**
+ * Un glyphe tel que le client le recoit.
+ *
+ * `id` est opaque et n'est JAMAIS affiche quand un trace existe : la world
+ * bible interdit de legender un glyphe, le duo doit inventer ses propres noms.
+ * `d` est un trace SVG dans une boite 0 0 100 100.
+ */
+export interface Glyphe {
+  id: string;
+  d?: string;
+}
+
+/**
  * Vue de A : les glyphes tels qu'il les voit, et les cases a remplir.
  *
  * `tray` est l'ordre d'AFFICHAGE, tire du seed. B ne le connait pas — c'est
@@ -39,9 +51,9 @@ export interface PuzzleMetrics {
 export interface GridView {
   kind: "grid";
   /** Glyphes dans l'ordre ou A les voit. */
-  tray: string[];
+  tray: Glyphe[];
   /** Glyphe pose dans chaque case, ou null. */
-  slots: (string | null)[];
+  slots: (Glyphe | null)[];
 }
 
 /**
@@ -51,12 +63,12 @@ export interface GridView {
  */
 export interface LegendView {
   kind: "legend";
-  /** Paires glyphe -> signification, triees par glyphe. */
-  legend: [string, string][];
+  /** Paires glyphe -> signification, triees par identifiant de glyphe. */
+  legend: [Glyphe, string][];
   /** Suite de significations a obtenir, dans l'ordre des cases. */
   target: string[];
   /** Glyphe pose dans chaque case, ou null. B suit l'avancement. */
-  slots: (string | null)[];
+  slots: (Glyphe | null)[];
 }
 
 export type LexiconView = GridView | LegendView;

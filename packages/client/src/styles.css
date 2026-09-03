@@ -235,3 +235,31 @@ input:focus {
 .phase.error {
   color: var(--accent);
 }
+
+/*
+ * Le trace d'un glyphe. Contraste plein, aucun grain, aucun flou : c'est
+ * l'element que les joueurs doivent se decrire a l'oral (world bible 6).
+ */
+.trace {
+  display: block;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin: 0 auto;
+}
+
+.glyphe-texte {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.releve .pose .trace,
+.legende .glyphe-nom .trace {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+}
+
+.releve li,
+.legende li {
+  align-items: center;
+}

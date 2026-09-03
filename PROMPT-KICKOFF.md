@@ -57,7 +57,7 @@ Implémente le PuzzleModule décrit en section 3 de CLAUDE.md, le loader de
 contenu (section 6 de docs/architecture.md), et le harnais de test des
 quatre obligations de vérification (section 4 de CLAUDE.md).
 
-Fais tourner le tout sur content/dev/room-01-fixture.json.
+Fais tourner le tout sur content/dev/room-01.json.
 
 Le test d'asymétrie est le plus important : il doit prouver qu'il existe
 deux instances distinctes produisant la même vue A avec des solutions

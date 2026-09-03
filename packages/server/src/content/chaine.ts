@@ -5,8 +5,11 @@
  * Les noms sont des noms de FICHIER sans extension : content/dev/<nom>.json
  * en developpement, content/prod/<nom>.enc en production.
  *
- * Au jalon 3 la chaine ne compte qu'une entree, la fixture de developpement.
+ * Un meme nom logique designe les deux versions d'une salle : la fixture
+ * lisible en developpement, le contenu reel chiffre en production. Le loader
+ * choisit selon le mode, personne d'autre n'a a le savoir.
+ *
  * Le passage d'une salle a la suivante (message `roomAdvance`) arrive avec la
  * salle 2.
  */
-export const CHAINE_DES_SALLES = ["room-01-fixture"] as const;
+export const CHAINE_DES_SALLES = ["room-01"] as const;

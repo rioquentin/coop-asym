@@ -55,17 +55,32 @@ schema/     JSON Schema d'une définition d'énigme
 
 ## État
 
-Jalons 1 à 3 faits :
+Jalons 1 à 3 faits, salle 1 mécaniquement écrite :
 
 - **Jalon 1** — lobby, code de room à 4 lettres, 2/2 connectés, attribution des
   rôles, reconnexion, balayage des rooms mortes.
-- **Jalon 2** — boucle réseau complète : chaque joueur ne reçoit que sa vue,
-  l'autorité est entièrement serveur.
+- **Jalon 2** — boucle réseau : chaque joueur ne reçoit que sa vue, l'autorité
+  est entièrement serveur.
 - **Jalon 3** — moteur d'énigmes (`PuzzleModule`), loader de contenu
-  dev/prod chiffré, et le harnais des quatre obligations de vérification.
-  Tout tourne sur `content/dev/room-01-fixture.json`.
+  dev/prod chiffré, harnais des quatre obligations de vérification.
+- **Salle 1** — primitive LEXIQUE, glyphes composés et tracés en SVG, contenu
+  tiré et chiffré dans `content/prod/`. Sans habillage narratif — voir D35
+  dans `DECISIONS.md`.
 
-Pas encore de contenu réel : `content/prod/` n'existe pas.
+## Contenu
+
+```bash
+pnpm --filter @coop/server content:cle          # génère CONTENT_KEY dans .env
+pnpm --filter @coop/server content:salle-01     # tire et chiffre la salle 1
+pnpm --filter @coop/server content:verifier room-01
+```
+
+Le contenu de `content/prod/` est tiré au hasard à l'exécution, chiffré avant
+d'atteindre le disque, et n'est jamais affiché. Sans `.env`, il est
+définitivement illisible — sauvegarde-le hors du dépôt.
+
+En développement (`pnpm dev`), c'est la fixture lisible de `content/dev/`
+qui est jouée. Le contenu réel demande `NODE_ENV=production` et la clé.
 
 ## Vérification
 

@@ -111,12 +111,16 @@ async function ouvrirPartie(): Promise<{ a: Poste; b: Poste }> {
 
 /** Joue la partie comme un duo : en croisant les deux vues, et elles seules. */
 function planDuDuo(vueA: GridView, vueB: LegendView): Action[] {
-  const glypheDuSens = new Map(
-    vueB.legend.map(([glyphe, sens]) => [sens, glyphe]),
+  const idParSens = new Map(
+    vueB.legend.map(([glyphe, sens]) => [sens, glyphe.id]),
   );
   return vueB.target.map((sens, position) => {
-    const glyphe = glypheDuSens.get(sens) as string;
-    return { type: "place", from: vueA.tray.indexOf(glyphe), to: position };
+    const id = idParSens.get(sens);
+    return {
+      type: "place",
+      from: vueA.tray.findIndex((glyphe) => glyphe.id === id),
+      to: position,
+    };
   });
 }
 
@@ -195,13 +199,13 @@ describe("boucle reseau", () => {
       Action,
       { type: "place" }
     >;
-    const glypheAttendu = vueA.tray[premier.from];
+    const idAttendu = vueA.tray[premier.from]?.id;
 
     a.agir(premier);
     await until(
-      () => (b.vue() as LegendView).slots[premier.to] === glypheAttendu,
+      () => (b.vue() as LegendView).slots[premier.to]?.id === idAttendu,
     );
-    expect((a.vue() as GridView).slots[premier.to]).toBe(glypheAttendu);
+    expect((a.vue() as GridView).slots[premier.to]?.id).toBe(idAttendu);
   });
 
   it("refuse l'intention qui n'est pas celle de son role", async () => {
@@ -267,10 +271,10 @@ describe("boucle reseau", () => {
       a.vue() as GridView,
       b.vue() as LegendView,
     )[0] as Extract<Action, { type: "place" }>;
-    const glypheAttendu = (a.vue() as GridView).tray[premier.from];
+    const idAttendu = (a.vue() as GridView).tray[premier.from]?.id;
     a.agir(premier);
     await until(
-      () => (b.vue() as LegendView).slots[premier.to] === glypheAttendu,
+      () => (b.vue() as LegendView).slots[premier.to]?.id === idAttendu,
     );
 
     const jeton = roomB.reconnectionToken;
@@ -284,8 +288,9 @@ describe("boucle reseau", () => {
     await until(() => roomA.state.phase === "PLAYING");
     // Le joueur ne doit rien reperdre : le glyphe est toujours pose.
     await until(
-      () => (b.vue() as LegendView | undefined)?.slots[premier.to] ===
-        glypheAttendu,
+      () =>
+        (b.vue() as LegendView | undefined)?.slots[premier.to]?.id ===
+        idAttendu,
     );
   });
 

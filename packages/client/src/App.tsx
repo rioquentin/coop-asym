@@ -4,6 +4,7 @@ import {
   isRoomCode,
   normalizeRoomCode,
   type Action,
+  type Glyphe,
   type GridView,
   type LegendView,
 } from "@coop/shared";
@@ -146,6 +147,29 @@ function Lobby({
   );
 }
 
+/**
+ * Le trace d'un glyphe. Aucun texte : la world bible interdit de legender un
+ * glyphe, le duo doit inventer ses propres noms.
+ *
+ * Le contenu de developpement n'a pas de trace ; on retombe alors sur
+ * l'identifiant, qui y est volontairement lisible.
+ */
+function TraceGlyphe({ glyphe }: { glyphe: Glyphe }) {
+  if (!glyphe.d) return <span className="glyphe-texte">{glyphe.id}</span>;
+  return (
+    <svg className="trace" viewBox="0 0 100 100" aria-hidden="true">
+      <path
+        d={glyphe.d}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 interface PosteProps {
   feedback: Feedback | null;
   onAct: (action: Action) => void;
@@ -167,7 +191,7 @@ function Plateau({
   const [choisi, setChoisi] = useState<number | null>(null);
 
   const estPose = (index: number): boolean =>
-    view.slots.includes(view.tray[index] ?? null);
+    view.slots.some((pose) => pose?.id === view.tray[index]?.id);
 
   function cliquerCase(position: number): void {
     if (view.slots[position] !== null) {
@@ -191,13 +215,13 @@ function Plateau({
       <div className="rangee">
         {view.tray.map((glyphe, index) => (
           <button
-            key={glyphe}
+            key={glyphe.id}
             type="button"
             className={`glyphe${choisi === index ? " choisi" : ""}`}
             disabled={estPose(index)}
             onClick={() => setChoisi(index)}
           >
-            {glyphe}
+            <TraceGlyphe glyphe={glyphe} />
           </button>
         ))}
       </div>
@@ -212,7 +236,7 @@ function Plateau({
             onClick={() => cliquerCase(position)}
           >
             <span className="rang">{position + 1}</span>
-            {glyphe ?? " "}
+            {glyphe ? <TraceGlyphe glyphe={glyphe} /> : null}
           </button>
         ))}
       </div>
@@ -237,7 +261,9 @@ function Registre({
   onAct,
   onLeave,
 }: PosteProps & { view: LegendView }) {
-  const sensPose = new Map(view.legend);
+  const sensParGlyphe = new Map(
+    view.legend.map(([glyphe, sens]) => [glyphe.id, sens]),
+  );
 
   return (
     <main className="sheet">
@@ -251,12 +277,13 @@ function Registre({
       <ol className="releve">
         {view.target.map((sens, position) => {
           const pose = view.slots[position];
-          const sensPoseIci = pose ? sensPose.get(pose) : undefined;
-          const juste = sensPoseIci === sens;
+          const juste = pose ? sensParGlyphe.get(pose.id) === sens : false;
           return (
             <li key={position} className={juste ? "juste" : undefined}>
               <span className="attendu">{sens}</span>
-              <span className="pose">{pose ?? "—"}</span>
+              <span className="pose">
+                {pose ? <TraceGlyphe glyphe={pose} /> : "—"}
+              </span>
             </li>
           );
         })}
@@ -265,8 +292,10 @@ function Registre({
       <p className="label">Legende</p>
       <ul className="legende">
         {view.legend.map(([glyphe, sens]) => (
-          <li key={glyphe}>
-            <span className="glyphe-nom">{glyphe}</span>
+          <li key={glyphe.id}>
+            <span className="glyphe-nom">
+              <TraceGlyphe glyphe={glyphe} />
+            </span>
             <span className="sens">{sens}</span>
           </li>
         ))}
