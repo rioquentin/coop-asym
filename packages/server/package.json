@@ -1,0 +1,28 @@
+{
+  "name": "@coop/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "echo \"pas de build serveur au jalon 1\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.18.10",
+    "@colyseus/schema": "^5.0.27",
+    "@colyseus/ws-transport": "^0.18.2",
+    "@coop/shared": "workspace:*",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@colyseus/sdk": "^0.18.2",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.0.0"
+  }
+}

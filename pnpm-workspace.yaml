@@ -1,0 +1,8 @@
+packages:
+  - "packages/*"
+
+# esbuild a besoin de son postinstall pour poser son binaire (tsx et vite en dependent).
+# msgpackr-extract est l'accelerateur natif optionnel de msgpackr, utilise par Colyseus.
+allowBuilds:
+  esbuild: true
+  msgpackr-extract: true
