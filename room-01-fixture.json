@@ -1,0 +1,44 @@
+{
+  "id": "dev-lexique-trivial",
+  "room": 1,
+  "primitives": ["LEXIQUE"],
+  "module": "src/puzzles/lexicon/index.ts",
+  "roles": {
+    "A": {
+      "component": "GlyphGrid",
+      "canAct": true,
+      "sees": ["glyphs", "slots"]
+    },
+    "B": {
+      "component": "LegendPanel",
+      "canAct": true,
+      "sees": ["legend", "targetOrder"]
+    }
+  },
+  "budget": {
+    "maxDiscreteElements": 4,
+    "targetExchanges": 5,
+    "targetMinutes": [1, 2]
+  },
+  "failure": {
+    "costSeconds": 0.5,
+    "resetsPuzzle": false,
+    "feedback": "informative"
+  },
+  "dressing": {
+    "roomLabel": "FIXTURE DEV",
+    "ambientText": "Contenu de développement. Aucune valeur narrative."
+  },
+  "content": {
+    "_note": "FIXTURE. Volontairement triviale et lisible. Ne jamais copier ce niveau de difficulté dans content/prod.",
+    "glyphs": ["carre", "rond", "triangle", "croix"],
+    "legend": {
+      "carre": "un",
+      "rond": "deux",
+      "triangle": "trois",
+      "croix": "quatre"
+    },
+    "slots": 4,
+    "targetOrder": ["rond", "croix", "carre", "triangle"]
+  }
+}

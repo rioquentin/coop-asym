@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coop-enigme/schema/puzzle.schema.json",
+  "title": "Définition d'énigme coopérative asymétrique",
+  "type": "object",
+  "required": ["id", "room", "primitives", "module", "roles", "budget"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Identifiant stable. Ne doit contenir aucun indice de solution."
+    },
+    "room": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "primitives": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["LEXIQUE", "TOPOLOGIE", "SIMULTANEITE", "ETAT_CROISE"]
+      }
+    },
+    "module": {
+      "type": "string",
+      "description": "Chemin du PuzzleModule TS qui implémente generate/viewFor/applyAction/isSolved/solve/metrics."
+    },
+    "roles": {
+      "type": "object",
+      "required": ["A", "B"],
+      "additionalProperties": false,
+      "properties": {
+        "A": { "$ref": "#/$defs/roleView" },
+        "B": { "$ref": "#/$defs/roleView" }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": ["maxDiscreteElements", "targetMinutes"],
+      "additionalProperties": false,
+      "properties": {
+        "maxDiscreteElements": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15,
+          "description": "Contrainte dure C1. Le plafond absolu du projet est 15."
+        },
+        "targetExchanges": { "type": "integer", "minimum": 1 },
+        "targetMinutes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "reusesLexiconFrom": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "ids d'énigmes dont le lexique est réutilisé. Sert à vérifier la règle de continuité."
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "costSeconds": {
+          "type": "number",
+          "maximum": 5,
+          "description": "Contrainte dure C2. Un échec ne coûte jamais plus de 5 secondes."
+        },
+        "resetsPuzzle": {
+          "const": false,
+          "description": "Toujours false. Un échec ne remet jamais l'énigme à zéro."
+        },
+        "feedback": {
+          "enum": ["informative", "binary"],
+          "description": "informative attendu partout sauf salle 5."
+        }
+      }
+    },
+    "dressing": {
+      "type": "object",
+      "description": "Habillage narratif. Séparé de la mécanique : l'énigme doit être jouable sans.",
+      "additionalProperties": false,
+      "properties": {
+        "ambientText": {
+          "type": "string",
+          "maxLength": 280,
+          "description": "40 mots max. Ne contient jamais d'indice de résolution."
+        },
+        "roomLabel": { "type": "string", "maxLength": 40 }
+      }
+    },
+    "content": {
+      "type": "object",
+      "description": "Données d'instance ou paramètres du générateur. En prod, ce bloc est chiffré et ne doit jamais être affiché.",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "roleView": {
+      "type": "object",
+      "required": ["component", "canAct"],
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "type": "string",
+          "description": "Composant React rendant cette vue."
+        },
+        "canAct": {
+          "const": true,
+          "description": "Toujours true. Les deux joueurs doivent avoir des décisions à prendre — anti-pattern du goulot."
+        },
+        "sees": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Clés du bloc content visibles par ce rôle. L'union des deux doit couvrir le nécessaire, aucune ne doit suffire seule (contrainte C3)."
+        }
+      }
+    }
+  }
+}
