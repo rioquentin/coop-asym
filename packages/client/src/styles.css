@@ -153,3 +153,26 @@ input:focus {
   font-size: 0.85rem;
   color: var(--accent);
 }
+
+/*
+ * Le voyant. C'est la seule information actionnable de la vue de B, donc la
+ * seule chose qui porte l'accent sature (world bible section 6).
+ */
+.lampe {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--regle);
+  text-align: center;
+  letter-spacing: 0.3em;
+  font-size: 0.8rem;
+  color: var(--encre-pale);
+}
+
+.lampe.allumee {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.phase.error {
+  color: var(--accent);
+}

@@ -1,12 +1,17 @@
 import { Room, logger, type Client } from "@colyseus/core";
 import {
+  CLIENT_MESSAGE,
   GameState,
   PlayerState,
   RECONNECTION_WINDOW_SECONDS,
   ROOM_TTL_MS,
+  SERVER_MESSAGE,
+  type ClientMessage,
   type Role,
   type RoomPhase,
+  type ServerMessage,
 } from "@coop/shared";
+import { demoPuzzle, type DemoInstance } from "../puzzles/demo";
 import { allocateRoomCode } from "./roomCode";
 
 /** Le minuteur rendu par `clock.setTimeout`, sans dependre de @colyseus/timer. */
@@ -28,6 +33,15 @@ export class GameRoom extends Room<{ state: GameState }> {
   /** Minuteur de destruction de la phase courante. Voir armTtl(). */
   private ttlTimer?: TtlTimer;
 
+  /**
+   * L'instance d'enigme en cours.
+   *
+   * Volontairement une propriete privee et NON un champ du Schema : elle ne
+   * doit jamais partir en synchronisation. Les joueurs n'en recoivent que ce
+   * que `viewFor` en extrait, en message cible.
+   */
+  private instance?: DemoInstance;
+
   override async onCreate(): Promise<void> {
     this.maxClients = 2;
 
@@ -40,6 +54,10 @@ export class GameRoom extends Room<{ state: GameState }> {
 
     // On ne rejoint que par code dicte : pas de listing public.
     await this.setPrivate(true);
+
+    this.onMessage(CLIENT_MESSAGE, (client: Client, message: ClientMessage) => {
+      this.handleClientMessage(client, message);
+    });
 
     this.armTtl();
   }
@@ -84,6 +102,9 @@ export class GameRoom extends Room<{ state: GameState }> {
     if (this.state.phase === "PAUSED" && this.allPlayersConnected()) {
       this.setPhase("PLAYING");
     }
+
+    // Le joueur ne doit rien reperdre : sa vue lui est rendue telle quelle.
+    this.pushView(client);
   }
 
   /**
@@ -114,7 +135,104 @@ export class GameRoom extends Room<{ state: GameState }> {
       player.role = ROLE_ORDER[index] ?? "";
       index++;
     }
+    this.instance = demoPuzzle.generate();
     this.setPhase("PLAYING");
+    this.pushViews();
+  }
+
+  // ---------------------------------------------------------------------
+  // Boucle de jeu
+  // ---------------------------------------------------------------------
+
+  /**
+   * Point d'entree unique des messages client. Tout ce qui arrive ici vient
+   * du reseau, donc n'est pas digne de confiance : on ne lit un champ qu'apres
+   * l'avoir verifie.
+   */
+  private handleClientMessage(client: Client, message: ClientMessage): void {
+    if (typeof message?.t !== "string") return;
+
+    switch (message.t) {
+      case "action":
+        this.handleAction(client, message);
+        return;
+      case "ping":
+        return;
+      default:
+        // `chat` et `ready` sont declares au protocole mais pas encore cables.
+        return;
+    }
+  }
+
+  /**
+   * Autorite serveur. Le client envoie une intention ; c'est ici, et nulle
+   * part ailleurs, qu'on decide de ce qu'elle produit.
+   */
+  private handleAction(
+    client: Client,
+    message: Extract<ClientMessage, { t: "action" }>,
+  ): void {
+    const role = this.roleOf(client);
+
+    if (this.state.phase !== "PLAYING" || !this.instance || !role) {
+      this.sendTo(client, {
+        t: "feedback",
+        kind: "rejected",
+        hint: "La partie n'est pas en cours.",
+      });
+      return;
+    }
+
+    if (message.puzzleId !== demoPuzzle.id) {
+      this.sendTo(client, {
+        t: "feedback",
+        kind: "rejected",
+        hint: "Ce n'est pas la piece en cours.",
+      });
+      return;
+    }
+
+    const result = demoPuzzle.applyAction(this.instance, role, message.action);
+    this.instance = result.instance;
+
+    this.sendTo(client, { t: "feedback", ...result.feedback });
+
+    if (result.feedback.kind === "accepted") {
+      this.pushViews();
+      if (demoPuzzle.isSolved(this.instance)) this.finish();
+    }
+  }
+
+  private finish(): void {
+    this.broadcast(SERVER_MESSAGE, { t: "finished" } satisfies ServerMessage);
+    this.setPhase("FINISHED");
+  }
+
+  /** Envoie a chaque joueur SA vue, et rien d'autre. */
+  private pushViews(): void {
+    for (const client of this.clients) this.pushView(client);
+  }
+
+  private pushView(client: Client): void {
+    const role = this.roleOf(client);
+    if (!this.instance || !role) return;
+
+    this.sendTo(client, {
+      t: "view",
+      puzzleId: demoPuzzle.id,
+      role,
+      view: demoPuzzle.viewFor(role, this.instance),
+    });
+  }
+
+  /** Seul chemin de sortie vers un client. Type par le protocole partage. */
+  private sendTo(client: Client, message: ServerMessage): void {
+    client.send(SERVER_MESSAGE, message);
+  }
+
+  private roleOf(client: Client): Role | undefined {
+    const role = this.state.players.get(client.sessionId)?.role;
+    return role === "A" || role === "B" ? role : undefined;
   }
 
   private allPlayersConnected(): boolean {

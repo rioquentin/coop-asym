@@ -7,32 +7,37 @@ import {
   ROOM_CODE_LENGTH,
   ROOM_NAME,
 } from "@coop/shared";
-import { createGameServer } from "../server";
+import { demarrerServeur, ignorerMessages, until } from "./harness";
 
 const PORT = 2599;
 const ENDPOINT = `ws://localhost:${PORT}`;
 
+type Partie = Room<unknown, GameState>;
+
 let server: Server;
 
-/** Attend qu'une condition portee par l'etat synchronise devienne vraie. */
-async function until(
-  predicate: () => boolean,
-  timeoutMs = 2000,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() > deadline) throw new Error("condition jamais atteinte");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
-
-function connect() {
+function connect(): Client {
   return new Client(ENDPOINT);
 }
 
+/** Ouvre une room et absorbe ses messages de jeu : ici on teste le lobby. */
+async function creer(client: Client = connect()): Promise<Partie> {
+  const room = await client.create<GameState>(ROOM_NAME, {}, GameState);
+  ignorerMessages(room);
+  return room;
+}
+
+async function rejoindre(
+  code: string,
+  client: Client = connect(),
+): Promise<Partie> {
+  const room = await client.joinById<GameState>(code, {}, GameState);
+  ignorerMessages(room);
+  return room;
+}
+
 beforeAll(async () => {
-  server = createGameServer();
-  await server.listen(PORT);
+  server = await demarrerServeur(PORT);
 });
 
 afterAll(async () => {
@@ -41,7 +46,7 @@ afterAll(async () => {
 
 describe("lobby", () => {
   it("attribue un code de 4 lettres sans caractere ambigu", async () => {
-    const room = await connect().create<GameState>(ROOM_NAME, {}, GameState);
+    const room = await creer();
     try {
       expect(room.roomId).toHaveLength(ROOM_CODE_LENGTH);
       for (const letter of room.roomId) {
@@ -54,13 +59,13 @@ describe("lobby", () => {
   });
 
   it("passe a 2/2 et distribue les roles A et B", async () => {
-    const hote = await connect().create<GameState>(ROOM_NAME, {}, GameState);
-    let invite: Room<unknown, GameState> | undefined;
+    const hote = await creer();
+    let invite: Partie | undefined;
     try {
       await until(() => hote.state?.phase === "WAITING");
       expect(hote.state.players.size).toBe(1);
 
-      invite = await connect().joinById<GameState>(hote.roomId, {}, GameState);
+      invite = await rejoindre(hote.roomId);
 
       await until(() => hote.state.phase === "PLAYING");
       await until(() => invite!.state.phase === "PLAYING");
@@ -82,12 +87,8 @@ describe("lobby", () => {
   });
 
   it("refuse un troisieme joueur", async () => {
-    const hote = await connect().create<GameState>(ROOM_NAME, {}, GameState);
-    const invite = await connect().joinById<GameState>(
-      hote.roomId,
-      {},
-      GameState,
-    );
+    const hote = await creer();
+    const invite = await rejoindre(hote.roomId);
     try {
       await until(() => hote.state.phase === "PLAYING");
       await expect(
@@ -100,13 +101,9 @@ describe("lobby", () => {
   });
 
   it("restaure le role et la partie apres une deconnexion subie", async () => {
-    const hote = await connect().create<GameState>(ROOM_NAME, {}, GameState);
+    const hote = await creer();
     const inviteClient = connect();
-    let invite = await inviteClient.joinById<GameState>(
-      hote.roomId,
-      {},
-      GameState,
-    );
+    let invite = await rejoindre(hote.roomId, inviteClient);
     try {
       await until(() => hote.state.phase === "PLAYING");
       const roleAvant = invite.state.players.get(invite.sessionId)?.role;
@@ -117,6 +114,7 @@ describe("lobby", () => {
       await until(() => hote.state.phase === "PAUSED");
 
       invite = await inviteClient.reconnect<GameState>(jeton, GameState);
+      ignorerMessages(invite);
       await until(() => hote.state.phase === "PLAYING");
 
       expect(invite.state.players.get(invite.sessionId)?.role).toBe(roleAvant);
@@ -128,7 +126,7 @@ describe("lobby", () => {
   });
 
   it("ne synchronise que des champs publics", async () => {
-    const room = await connect().create<GameState>(ROOM_NAME, {}, GameState);
+    const room = await creer();
     try {
       await until(() => room.state?.phase === "WAITING");
       // Garde-fou : si une donnee d'enigme ou une vue arrive un jour dans

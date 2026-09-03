@@ -107,6 +107,75 @@ n'apporterait qu'une étape de plus à garder synchronisée.
 
 ---
 
+## Jalon 2 — boucle réseau
+
+### D13. L'énigme bidon n'est pas un `PuzzleModule`
+
+`packages/server/src/puzzles/demo.ts` expose `generate` / `viewFor` /
+`applyAction` / `isSolved`, mais ni `solve`, ni `metrics`, ni génération par
+seed. Le jalon 2 doit prouver la plomberie, pas préfigurer le moteur : écrire
+un `solve()` pour une énigme à deux boutons produirait un contrat validé
+contre un cas qui n'exerce rien. Le moteur et ses quatre obligations de
+vérification arrivent au jalon 3.
+
+### D14. `applyAction` renvoie un retour d'action, pas seulement une instance
+
+**Point à trancher pour le jalon 3.** Le contrat de `CLAUDE.md` section 3 dit :
+
+```ts
+applyAction(inst: PuzzleInstance, role: 'A'|'B', action: Action): PuzzleInstance;
+```
+
+Cette signature ne peut pas porter la contrainte C2 de `docs/puzzle-spec.md`
+(« l'erreur doit être informative : rate un essai et tu apprends quelque
+chose »). Avec elle, un refus est indiscernable d'une action sans effet, et le
+motif du refus n'a nulle part où passer — or c'est le module qui le connaît,
+pas la room.
+
+Le module démo renvoie donc `{ instance, feedback }`. Si le jalon 3 garde la
+signature de CLAUDE.md, le feedback informatif devra venir d'ailleurs, et je ne
+vois pas d'où. À arbitrer avant d'écrire le moteur.
+
+### D15. La vue de A est constante et vide
+
+A ne reçoit que `{ kind: "button" }`. Pas de compteur de pressions : sa parité
+donnerait l'état de la lampe. C'est la démonstration en miniature de ce que
+`viewFor` doit garantir — une vue ne fuit pas seulement par ce qu'elle dit,
+mais par ce qu'on peut en déduire.
+
+Conséquence assumée : la vue de A ne change jamais, donc A n'a pour retour que
+le `feedback` de ses propres gestes.
+
+### D16. Un seul type de message Colyseus par sens
+
+Tout ce qui va du client au serveur passe par le type `"c"`, tout ce qui en
+revient par `"s"`, chacun portant l'union déclarée dans
+`docs/architecture.md` section 5. L'alternative — un type Colyseus natif par
+variante — éparpillerait le protocole documenté dans les chaînes de caractères
+du code. Un seul point de sortie vers un client (`sendTo`) rend aussi le
+garde-fou anti-fuite vérifiable d'un coup d'œil.
+
+### D17. Le garde-fou anti-fuite a été vérifié par injection
+
+Le test « ne laisse jamais fuir l'état de la lampe vers A » enregistre **tout**
+ce que le serveur envoie à A, via le joker `onMessage("*")` — que le SDK
+n'appelle que faute de gestionnaire spécifique, donc rien ne lui échappe.
+
+Un test de non-fuite qui ne peut pas échouer est un décor. J'ai ajouté `lit` à
+la vue de A pour vérifier qu'il passait bien au rouge, puis remis en état.
+
+### D18. La frontière est vérifiée sur le graphe d'imports, pas sur le bundle
+
+`frontiere.test.ts` lit les sources du client et de `shared` et échoue si l'une
+importe `@coop/server`, `content/prod` ou un module d'énigme. Inspecter le
+bundle après `vite build` détecterait la même faute plus tard, plus lentement,
+et seulement si le build tourne. Le graphe d'imports la détecte à l'écriture.
+
+Le bundle a tout de même été vérifié à la main une fois : ni `isSolved`, ni
+`applyAction`, ni `confirmed`, ni `content/prod`.
+
+---
+
 ## Environnement
 
 - **pnpm** n'était pas installé et `corepack enable` demande l'élévation sous

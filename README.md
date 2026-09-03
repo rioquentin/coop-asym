@@ -55,6 +55,13 @@ schema/     JSON Schema d'une définition d'énigme
 
 ## État
 
-Jalon 1 fait : lobby, code de room à 4 lettres, 2/2 connectés, attribution des
-rôles, reconnexion. Pas encore d'énigme — voir les jalons dans
+Jalons 1 et 2 faits :
+
+- **Jalon 1** — lobby, code de room à 4 lettres, 2/2 connectés, attribution des
+  rôles, reconnexion, balayage des rooms mortes.
+- **Jalon 2** — boucle réseau complète sur une énigme bidon : A voit un
+  commutateur, B voit un voyant, aucun des deux ne voit la vue de l'autre.
+  L'autorité est entièrement serveur.
+
+Pas encore de moteur d'énigmes ni de contenu — voir les jalons dans
 `docs/architecture.md` section 7.

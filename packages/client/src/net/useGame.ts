@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, type Room } from "@colyseus/sdk";
 import {
+  CLIENT_MESSAGE,
+  DEMO_PUZZLE_ID,
   GameState,
   ROOM_NAME,
+  SERVER_MESSAGE,
   normalizeRoomCode,
+  type Action,
+  type ClientMessage,
   type RoomPhase,
+  type ServerMessage,
+  type View,
 } from "@coop/shared";
 
 /** Cle de stockage du jeton de reconnexion. sessionStorage : un onglet, une partie. */
@@ -34,13 +41,24 @@ export interface Snapshot {
 
 export type Status = "restoring" | "idle" | "connecting" | "connected";
 
+/** Dernier retour du serveur sur une intention envoyee. */
+export interface Feedback {
+  kind: "accepted" | "rejected";
+  hint?: string;
+}
+
 export interface Game {
   status: Status;
   snapshot: Snapshot | null;
   error: string | null;
+  /** La vue de CE joueur. Le client n'en connait jamais d'autre. */
+  view: View | null;
+  feedback: Feedback | null;
+  finished: boolean;
   createRoom: () => Promise<void>;
   joinRoom: (code: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
+  act: (action: Action) => void;
 }
 
 function describeError(error: unknown): string {
@@ -75,6 +93,9 @@ export function useGame(): Game {
   const [status, setStatus] = useState<Status>("restoring");
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<View | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [finished, setFinished] = useState(false);
 
   if (clientRef.current === null) {
     clientRef.current = new Client(ENDPOINT);
@@ -89,6 +110,22 @@ export function useGame(): Game {
       setSnapshot(toSnapshot(state, room.sessionId));
     });
 
+    room.onMessage(SERVER_MESSAGE, (message: ServerMessage) => {
+      switch (message.t) {
+        case "view":
+          setView(message.view);
+          return;
+        case "feedback":
+          setFeedback({ kind: message.kind, hint: message.hint });
+          return;
+        case "finished":
+          setFinished(true);
+          return;
+        default:
+          return;
+      }
+    });
+
     room.onError((_code, message) => {
       setError(message ?? "Erreur serveur.");
     });
@@ -97,10 +134,16 @@ export function useGame(): Game {
       sessionStorage.removeItem(TOKEN_KEY);
       roomRef.current = null;
       setSnapshot(null);
+      setView(null);
+      setFeedback(null);
+      setFinished(false);
       setStatus("idle");
     });
 
     setError(null);
+    setView(null);
+    setFeedback(null);
+    setFinished(false);
     setStatus("connected");
   }, []);
 
@@ -168,5 +211,30 @@ export function useGame(): Game {
     await roomRef.current?.leave(true);
   }, []);
 
-  return { status, snapshot, error, createRoom, joinRoom, leaveRoom };
+  /**
+   * Envoie une INTENTION. Le client ne calcule rien : il ne sait meme pas si
+   * l'action est legitime, c'est le serveur qui repond.
+   */
+  const act = useCallback((action: Action) => {
+    setFeedback(null);
+    const message: ClientMessage = {
+      t: "action",
+      puzzleId: DEMO_PUZZLE_ID,
+      action,
+    };
+    roomRef.current?.send(CLIENT_MESSAGE, message);
+  }, []);
+
+  return {
+    status,
+    snapshot,
+    error,
+    view,
+    feedback,
+    finished,
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    act,
+  };
 }
