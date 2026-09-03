@@ -196,6 +196,35 @@ describe("boucle reseau", () => {
     await until(() => a.room.state.phase === "FINISHED");
   });
 
+  it("rend a un revenant la vue qu'il avait laissee", async () => {
+    const clientB = new Client(ENDPOINT);
+    const roomA = await new Client(ENDPOINT).create<GameState>(
+      ROOM_NAME,
+      {},
+      GameState,
+    );
+    const a = observer(roomA);
+    let roomB = await clientB.joinById<GameState>(roomA.roomId, {}, GameState);
+    let b = observer(roomB);
+    ouverts.push(a, b);
+
+    await until(() => roomA.state.phase === "PLAYING");
+    a.agir({ type: "press" });
+    await until(() => (b.vue() as { lit?: boolean } | undefined)?.lit === true);
+
+    const jeton = roomB.reconnectionToken;
+    await roomB.leave(false);
+    await until(() => roomA.state.phase === "PAUSED");
+
+    roomB = await clientB.reconnect<GameState>(jeton, GameState);
+    b = observer(roomB);
+    ouverts = [a, b];
+
+    await until(() => roomA.state.phase === "PLAYING");
+    // Le joueur ne doit rien reperdre : le voyant est toujours allume.
+    await until(() => (b.vue() as { lit?: boolean } | undefined)?.lit === true);
+  });
+
   it("refuse toute intention hors phase de jeu", async () => {
     const roomA = await new Client(ENDPOINT).create<GameState>(
       ROOM_NAME,
