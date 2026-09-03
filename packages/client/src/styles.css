@@ -1,0 +1,237 @@
+/*
+ * Palette de la world bible section 6 : os, encre noire, un seul accent
+ * sature reserve a l'information actionnable (ici : le code a dicter).
+ */
+:root {
+  --os: #e8e3d7;
+  --papier: #f3efe6;
+  --encre: #1a1815;
+  --encre-pale: #6b6459;
+  --accent: #b1341f;
+  --regle: #cdc5b4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--os);
+  color: var(--encre);
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
+
+.sheet {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 2.5rem;
+  background: var(--papier);
+  border: 1px solid var(--regle);
+  box-shadow: 0 1px 0 var(--regle);
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.muted {
+  color: var(--encre-pale);
+  font-size: 0.85rem;
+  margin: 0 0 1.5rem;
+}
+
+.label {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--encre-pale);
+}
+
+.code {
+  margin: 0.25rem 0 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 3rem;
+  letter-spacing: 0.35em;
+  color: var(--accent);
+}
+
+.count {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.roster {
+  margin: 0 0 1.5rem;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+}
+
+.roster .offline {
+  color: var(--encre-pale);
+}
+
+.phase {
+  margin: 0 0 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--regle);
+  font-size: 0.85rem;
+  color: var(--encre-pale);
+}
+
+button {
+  font: inherit;
+  padding: 0.6rem 1.2rem;
+  background: transparent;
+  color: var(--encre);
+  border: 1px solid var(--encre);
+  cursor: pointer;
+}
+
+button:disabled {
+  border-color: var(--regle);
+  color: var(--regle);
+  cursor: default;
+}
+
+button.primary {
+  width: 100%;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.rule {
+  display: grid;
+  place-items: center;
+  margin: 1.25rem 0;
+  border-top: 1px solid var(--regle);
+}
+
+.rule span {
+  transform: translateY(-50%);
+  padding: 0 0.6rem;
+  background: var(--papier);
+  color: var(--encre-pale);
+  font-size: 0.75rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--encre-pale);
+}
+
+input {
+  font: inherit;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem;
+  background: transparent;
+  border: 1px solid var(--regle);
+  color: var(--encre);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+input:focus {
+  outline: 1px solid var(--accent);
+}
+
+.error {
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+/*
+ * Le poste de travail. Contrainte de lisibilite de la world bible section 6 :
+ * tout element qui doit etre decrit a l'oral est contraste et non ambigu.
+ * L'accent sature est reserve a ce qui est actionnable.
+ */
+
+.rangee {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0 1.25rem;
+}
+
+.glyphe,
+.case {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  min-width: 5rem;
+  padding: 0.7rem 0.4rem;
+  text-align: center;
+}
+
+.glyphe.choisi {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.case {
+  position: relative;
+  border-style: dashed;
+  color: var(--encre-pale);
+}
+
+.case.remplie {
+  border-style: solid;
+  color: var(--encre);
+}
+
+.rang {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.3rem;
+  font-size: 0.6rem;
+  color: var(--encre-pale);
+}
+
+.releve,
+.legende {
+  margin: 0.4rem 0 1.25rem;
+  padding-left: 1.4rem;
+  font-size: 0.85rem;
+}
+
+.legende {
+  list-style: none;
+  padding-left: 0;
+}
+
+.releve li,
+.legende li {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--regle);
+}
+
+.releve .pose,
+.legende .glyphe-nom {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--encre-pale);
+}
+
+.releve li.juste .pose {
+  color: var(--accent);
+}
+
+.phase.error {
+  color: var(--accent);
+}

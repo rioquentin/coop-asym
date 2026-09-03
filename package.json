@@ -1,0 +1,14 @@
+{
+  "name": "coop-asym",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "pnpm --parallel -r --filter @coop/server --filter @coop/client dev",
+    "dev:server": "pnpm --filter @coop/server dev",
+    "dev:client": "pnpm --filter @coop/client dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}
