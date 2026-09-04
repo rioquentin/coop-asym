@@ -2,6 +2,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "@colyseus/core";
 import { Client, type Room } from "@colyseus/sdk";
 import {
+  CHAT_MAX_CARACTERES,
+  DIRECTIONS,
   CLIENT_MESSAGE,
   GameState,
   ROOM_NAME,
@@ -13,12 +15,15 @@ import {
   type ArpentView,
   type ClavierView,
   type LitanieView,
+  type PlanView,
   type PosteView,
   type ReleveView,
+  type Touche,
   type ServerMessage,
 } from "@coop/shared";
 import { CHAINE_DES_SALLES } from "../content/chaine";
 import { chargerDefinition } from "../content/loader";
+import { voisin } from "../puzzles/plan";
 import { demarrerServeur, respirer, until } from "./harness";
 
 const PORT = 2598;
@@ -37,6 +42,8 @@ interface Poste {
   room: Room<unknown, GameState>;
   journal: Journal[];
   vue(): Extract<ServerMessage, { t: "view" }>["view"] | undefined;
+  /** L'enigme de la derniere vue recue. Change quand la salle change. */
+  puzzle(): string | undefined;
   nbVues(): number;
   dernierFeedback(): Extract<ServerMessage, { t: "feedback" }> | undefined;
   aRecuFin(): boolean;
@@ -68,6 +75,11 @@ function observer(room: Room<unknown, GameState>): Poste {
       return messages()
         .filter((m) => m.t === "view")
         .at(-1)?.view;
+    },
+    puzzle() {
+      return messages()
+        .filter((m) => m.t === "view")
+        .at(-1)?.puzzleId;
     },
     nbVues() {
       return messages().filter((m) => m.t === "view").length;
@@ -181,6 +193,7 @@ async function parcourir(
   b: Poste,
   ouvertures: () => Direction[],
   surPlace: () => Promise<boolean>,
+  apresChaquePas: (direction: Direction) => void = () => {},
 ): Promise<void> {
   let x = 0;
   let y = 0;
@@ -193,6 +206,7 @@ async function parcourir(
     await until(() => b.nbVues() > avant);
     x += DELTA[direction][0];
     y += DELTA[direction][1];
+    apresChaquePas(direction);
   };
 
   for (let pas = 0; pas < 300; pas++) {
@@ -217,26 +231,75 @@ async function parcourir(
 }
 
 /**
- * Fait resoudre la salle 2. B marche a l'aveugle — le test n'a pas plus
- * d'information que lui — et A scelle quand B annonce etre arrive.
+ * Fait resoudre la salle 2 par le duo, en ne croisant que les deux vues.
  *
- * B explore en profondeur en tenant sa position a l'estime : il ne sait pas
- * ou il est sur le plan, mais il sait d'ou il vient. C'est exactement ce
- * qu'un joueur fait, et ca couvre un plan connexe en un nombre de pas borne.
+ * B marche a l'aveugle — le test n'a pas plus d'information que lui — et
+ * decrit ce qu'il voit. A tient sur son plan l'ensemble des cases encore
+ * compatibles avec cette description, et ne scelle que lorsqu'il n'en reste
+ * qu'une et que c'est le depot.
+ *
+ * La version precedente de cette fonction gagnait la salle sans echanger un
+ * mot : B errait jusqu'a ce que son ecran lui annonce l'arrivee. Qu'elle ne
+ * puisse plus s'ecrire est le seul controle qui prouve D71.
  */
 async function resoudreLaTopologie(a: Poste, b: Poste): Promise<void> {
-  let arrive = false;
+  // B ne sait plus quand il est arrive : le sol du depot ne se distingue de
+  // rien. C'est donc A qui doit le reconnaitre, en tenant sur son plan
+  // l'ensemble des cases encore compatibles avec ce que B lui decrit. Le duo
+  // qui ne se parle pas n'a plus aucun moyen de gagner — c'est tout l'objet
+  // de D71, et ce test est ce qui le prouve.
+  const plan = a.vue() as PlanView;
+  const largeur = plan.largeur;
+  const total = largeur * plan.hauteur;
+  const depot = plan.depot.y * largeur + plan.depot.x;
+
+  const ouverturesDe = (case_: number): Direction[] =>
+    DIRECTIONS.filter((d) => !(plan.murs[case_] as Direction[]).includes(d));
+
+  const memeChose = (gauche: Direction[], droite: Direction[]): boolean =>
+    gauche.length === droite.length && gauche.every((d) => droite.includes(d));
+
+  /** Les cases ou B peut se trouver, au vu de tout ce qu'il a decrit. */
+  let candidates = new Set<number>();
+  for (let case_ = 0; case_ < total; case_++) candidates.add(case_);
+
+  const filtrer = (): void => {
+    const vues = (b.vue() as PosteView).ouvertures;
+    candidates = new Set(
+      [...candidates].filter((case_) => memeChose(ouverturesDe(case_), vues)),
+    );
+  };
+
+  const suivre = (direction: Direction): void => {
+    const apres = new Set<number>();
+    for (const case_ of candidates) {
+      if ((plan.murs[case_] as Direction[]).includes(direction)) continue;
+      const suivant = voisin(plan, case_, direction);
+      if (suivant !== null) apres.add(suivant);
+    }
+    candidates = apres;
+  };
+
+  filtrer();
+
+  let scelle = false;
   await parcourir(
     b,
     () => (b.vue() as PosteView).ouvertures,
     async () => {
-      if (!(b.vue() as PosteView).surLeDepot) return false;
+      filtrer();
+      // A ne scelle que lorsque le plan ne laisse plus qu'une case possible,
+      // et que c'est le depot. Aucun scellement a l'aveugle : le refus ne se
+      // rejoue pas tant que B n'a pas bouge.
+      if (candidates.size !== 1 || !candidates.has(depot)) return false;
       a.agir({ type: "sceller" });
-      arrive = true;
+      scelle = true;
       return true;
     },
+    (direction) => suivre(direction),
   );
-  if (!arrive) throw new Error("le depot n'a pas ete atteint");
+
+  if (!scelle) throw new Error("le depot n'a pas ete reconnu");
 }
 
 /**
@@ -279,12 +342,35 @@ async function resoudreLeReleve(
   a.agir({ type: "sceller" });
 }
 
+/** L'index d'un glyphe sur un clavier, quelle que soit sa monnaie. */
+function indexDe(
+  clavier: Touche[],
+  glyphe: string,
+  sensDe: Map<string, string>,
+): number {
+  return clavier.findIndex((touche) =>
+    touche.genre === "forme"
+      ? touche.forme.id === glyphe
+      : touche.sens === sensDe.get(glyphe),
+  );
+}
+
+/** Le glyphe que designe une touche, quelle que soit sa monnaie. */
+function glypheDe(
+  touche: Touche,
+  glypheDuSens: Map<string, string>,
+): string {
+  return touche.genre === "forme"
+    ? touche.forme.id
+    : (glypheDuSens.get(touche.sens) as string);
+}
+
 /**
- * Fait resoudre la salle 4. Le test ne dispose que des deux vues et de la
- * correspondance rapportee de la salle 1 — comme le duo.
+ * Fait resoudre une salle a engagement aveugle — la 4 comme la 5.
  *
- * A lit la suite AVANT d'armer le mecanisme, puis elle disparait de sa vue.
- * Ensuite chacun s'engage a l'aveugle, sans voir ce que l'autre a engage.
+ * Le test ne suppose pas qui tient la suite : il le decouvre a la forme des
+ * vues, exactement comme un joueur en ouvrant la salle 5 et en constatant que
+ * son poste a change de main.
  */
 async function resoudreLaLitanie(
   a: Poste,
@@ -295,29 +381,44 @@ async function resoudreLaLitanie(
     [...sensDe.entries()].map(([glyphe, sens]) => [sens, glyphe]),
   );
 
-  const vueA = a.vue() as LitanieView;
-  // Ce que le duo se dit pendant la preparation : la suite, en significations.
-  const suite = vueA.suite;
+  const tientLaSuite = a.vue()?.kind === "litanie" ? a : b;
+  const autre = tientLaSuite === a ? b : a;
+
+  const suite = (tientLaSuite.vue() as LitanieView).suite;
   if (!suite) throw new Error("la suite devrait etre lisible avant l'engagement");
 
-  const avantEngagement = a.nbVues();
-  a.agir({ type: "engager" });
-  await until(() => a.nbVues() > avantEngagement);
-  expect((a.vue() as LitanieView).suite).toBeNull();
+  const avantEngagement = tientLaSuite.nbVues();
+  tientLaSuite.agir({ type: "engager" });
+  await until(() => tientLaSuite.nbVues() > avantEngagement);
+  expect((tientLaSuite.vue() as LitanieView).suite).toBeNull();
 
-  for (const sens of suite) {
-    const attendu = (a.vue() as LitanieView).progres + 1;
-    const clavierA = (a.vue() as LitanieView).clavier;
-    const clavierB = (b.vue() as ClavierView).clavier;
+  const salle = tientLaSuite.puzzle();
 
-    const glyphe = glypheDuSens.get(sens) as string;
-    a.agir({ type: "presser", index: clavierA.indexOf(sens) });
-    b.agir({
+  for (const touche of suite) {
+    const attendu = (tientLaSuite.vue() as LitanieView).progres + 1;
+    const glyphe = glypheDe(touche, glypheDuSens);
+
+    tientLaSuite.agir({
       type: "presser",
-      index: clavierB.findIndex((forme) => forme.id === glyphe),
+      index: indexDe(
+        (tientLaSuite.vue() as LitanieView).clavier,
+        glyphe,
+        sensDe,
+      ),
+    });
+    autre.agir({
+      type: "presser",
+      index: indexDe((autre.vue() as ClavierView).clavier, glyphe, sensDe),
     });
 
-    await until(() => (a.vue() as LitanieView).progres >= attendu);
+    // Le dernier tour resout la salle : la vue bascule sur la suivante avant
+    // que le compteur n'ait le temps d'etre relu.
+    await until(
+      () =>
+        tientLaSuite.puzzle() !== salle ||
+        (tientLaSuite.vue() as LitanieView).progres >= attendu,
+    );
+    if (tientLaSuite.puzzle() !== salle) return;
   }
 }
 
@@ -516,9 +617,19 @@ describe("boucle reseau", () => {
 
     // Salle 4 : rien de neuf, tout de memoire, et chacun s'engage en aveugle.
     await resoudreLaLitanie(a, b, sensDe);
+    await until(() => a.room.state.room === 5);
+    await until(() => a.vue() !== undefined && b.vue() !== undefined);
+
+    // Salle 5. Ce qu'on verifie ici est volontairement pauvre : que la salle
+    // s'ouvre et que les deux postes existent. Decrire ce qui change entre la
+    // salle 4 et la salle 5 est couvert par le mur — CLAUDE.md section 1.
+    expect(a.vue()).toBeDefined();
+    expect(b.vue()).toBeDefined();
+
+    await resoudreLaLitanie(a, b, sensDe);
     await until(() => a.aRecuFin() && b.aRecuFin());
     await until(() => a.room.state.phase === "FINISHED");
-  }, 90_000);
+  }, 120_000);
 
   it("masque la suite des que le mecanisme est arme", async () => {
     const { a, b } = await ouvrirPartie();
@@ -618,6 +729,66 @@ describe("boucle reseau", () => {
         (b.vue() as LegendView | undefined)?.slots[premier.to]?.id ===
         idAttendu,
     );
+  });
+
+  it("porte les deux cotes de la conversation", async () => {
+    const { a, b } = await ouvrirPartie();
+
+    a.room.send(CLIENT_MESSAGE, { t: "chat", text: "trois barres et une boucle" });
+    await until(() => a.room.state.chat.length === 1);
+    await until(() => b.room.state.chat.length === 1);
+
+    // Le role vient du serveur : le client ne l'annonce nulle part.
+    expect(a.room.state.chat.at(0)?.from).toBe("A");
+    expect(b.room.state.chat.at(0)?.text).toBe("trois barres et une boucle");
+
+    b.room.send(CLIENT_MESSAGE, { t: "chat", text: "recu" });
+    await until(() => a.room.state.chat.length === 2);
+    expect(a.room.state.chat.at(1)?.from).toBe("B");
+  });
+
+  it("ecarte le vide et le trop long sans rien consigner", async () => {
+    const { a } = await ouvrirPartie();
+
+    a.room.send(CLIENT_MESSAGE, { t: "chat", text: "   " });
+    a.room.send(CLIENT_MESSAGE, {
+      t: "chat",
+      text: "x".repeat(CHAT_MAX_CARACTERES + 1),
+    });
+    await respirer();
+
+    expect(a.room.state.chat.length).toBe(0);
+    // Le trop-long est refuse avec un motif ; le vide ne merite pas de reponse.
+    expect(a.dernierFeedback()?.kind).toBe("rejected");
+  });
+
+  it("rend la transcription intacte apres une deconnexion subie", async () => {
+    const clientB = new Client(ENDPOINT);
+    const roomA = await new Client(ENDPOINT).create<GameState>(
+      ROOM_NAME,
+      {},
+      GameState,
+    );
+    const a = observer(roomA);
+    let roomB = await clientB.joinById<GameState>(roomA.roomId, {}, GameState);
+    ouverts.push(a, observer(roomB));
+
+    await until(() => roomA.state.phase === "PLAYING");
+    roomA.send(CLIENT_MESSAGE, { t: "chat", text: "note avant la coupure" });
+    await until(() => roomB.state.chat.length === 1);
+
+    const jeton = roomB.reconnectionToken;
+    await roomB.leave(false);
+    await until(() => roomA.state.phase === "PAUSED");
+
+    roomB = await clientB.reconnect<GameState>(jeton, GameState);
+    const revenu = observer(roomB);
+    ouverts = [a, revenu];
+    await until(() => roomA.state.phase === "PLAYING");
+
+    // Le chat vit dans l'etat synchronise : il revient sans etre redemande.
+    await until(() => roomB.state.chat.length === 1);
+    expect(roomB.state.chat.at(0)?.text).toBe("note avant la coupure");
   });
 
   it("refuse toute intention hors phase de jeu", async () => {

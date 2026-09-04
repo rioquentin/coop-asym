@@ -46,7 +46,7 @@ const definition: PuzzleDefinition = {
     B: {
       component: "PostePanel",
       canAct: true,
-      sees: ["ouvertures", "surLeDepot", "surLeJalon"],
+      sees: ["ouvertures", "surLeJalon"],
     },
   },
   budget: {

@@ -55,14 +55,14 @@ schema/     JSON Schema d'une définition d'énigme
 
 ## État
 
-Jalons 1 à 3 faits, salles 1 à 4 écrites et chaînées :
+Jalons 1 à 3 faits, les cinq salles écrites et chaînées :
 
 - **Jalon 1** — lobby, code de room à 4 lettres, 2/2 connectés, attribution des
   rôles, reconnexion, balayage des rooms mortes.
 - **Jalon 2** — boucle réseau : chaque joueur ne reçoit que sa vue, l'autorité
   est entièrement serveur.
 - **Jalon 3** — moteur d'énigmes (`PuzzleModule`), loader de contenu
-  dev/prod chiffré, harnais des quatre obligations de vérification.
+  dev/prod chiffré, harnais des cinq obligations de vérification.
 - **Salle 1** — primitive LEXIQUE, glyphes composés et tracés en SVG, contenu
   tiré et chiffré dans `content/prod/`, habillage narratif posé.
 - **Salle 2** — primitive TOPOLOGIE : l'un voit le plan, l'autre s'y déplace à
@@ -73,6 +73,12 @@ Jalons 1 à 3 faits, salles 1 à 4 écrites et chaînées :
 - **Salle 4** — SIMULTANÉITÉ, zéro vocabulaire neuf. Un mécanisme réclame une
   suite de signes ; chacun s'engage sans voir ce que l'autre engage, et la
   suite disparaît dès que le mécanisme est armé.
+- **Salle 5** — le capstone. Elle porte le retournement, elle réutilise la
+  mécanique d'une salle précédente, et **sa mécanique est couverte par le mur
+  anti-spoil** au même titre que le contenu : en salle 5, décrire comment ça
+  marche revient à décrire le retournement. Voir `CLAUDE.md` §1.
+- **Chat** — dans l'état synchronisé, donc restitué intact après une
+  reconnexion. Le rôle d'une ligne vient du serveur, jamais du client.
 - **Trame** — les cinq salles et le retournement de la salle 5, chiffrés dans
   `content/prod/trame.enc`. Écrits par un canal séparé, contrôlés par
   programme, jamais relus — voir D35 à D37 dans `DECISIONS.md`.
@@ -80,24 +86,31 @@ Jalons 1 à 3 faits, salles 1 à 4 écrites et chaînées :
 ## Contenu
 
 ```bash
-pnpm --filter @coop/server content:cle          # génère CONTENT_KEY dans .env
+pnpm --filter @coop/server content:cle          # écrit CONTENT_KEY dans ~/.coop-asym/.env
 pnpm --filter @coop/server content:salle-01     # tire et chiffre la salle 1
 pnpm --filter @coop/server content:salle-02     # ecrit et chiffre la salle 2
 pnpm --filter @coop/server content:salle-03     # ecrit et chiffre la salle 3
 pnpm --filter @coop/server content:salle-04     # ecrit et chiffre la salle 4
+pnpm --filter @coop/server content:salle-05     # lit l'inversion dans la trame
 pnpm --filter @coop/server content:verifier room-01
 pnpm --filter @coop/server content:controler-trame
+pnpm --filter @coop/server content:obligations   # verdicts des cinq obligations
+pnpm --filter @coop/server content:decisions-05  # archive chiffrée du raisonnement
 ```
 
 Le contenu de `content/prod/` est tiré au hasard à l'exécution, chiffré avant
-d'atteindre le disque, et n'est jamais affiché. Sans `.env`, il est
-définitivement illisible — sauvegarde-le hors du dépôt.
+d'atteindre le disque, et n'est jamais affiché. Sans la clé, il est
+définitivement illisible — sauvegarde `~/.coop-asym/.env` ailleurs.
+
+La clé vit **hors du dépôt**, volontairement : un dépôt posé dans un dossier
+synchronisé y emporte tout ce qu'il contient, et la clé à côté du chiffré,
+c'est le clair chez le fournisseur. Voir D69.
 
 En développement (`pnpm dev`), c'est la fixture lisible de `content/dev/`
 qui est jouée. Le contenu réel demande `NODE_ENV=production` et la clé.
 
 ## Vérification
 
-`pnpm test` fait tourner, entre autres, les quatre obligations de
+`pnpm test` fait tourner, entre autres, les cinq obligations de
 `CLAUDE.md` section 4 sur 500 seeds. Les échecs n'impriment que
 l'identifiant de l'assertion et le seed — jamais une valeur de solution.

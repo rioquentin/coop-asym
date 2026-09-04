@@ -1,5 +1,12 @@
-import { useState, type FormEvent, type ReactNode } from "react";
 import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import {
+  CHAT_MAX_CARACTERES,
   ROOM_CODE_LENGTH,
   isRoomCode,
   normalizeRoomCode,
@@ -15,6 +22,7 @@ import {
   type PlanView,
   type PosteView,
   type ReleveView,
+  type Touche,
 } from "@coop/shared";
 import {
   useGame,
@@ -43,6 +51,19 @@ export function App() {
 
 /** Aiguillage entre le lobby, le poste de travail et l'ecran de fin. */
 function Session({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
+  const role =
+    snapshot.players.find((j) => j.sessionId === snapshot.selfSessionId)?.role ??
+    "";
+
+  return (
+    <div className="pile">
+      <Poste game={game} snapshot={snapshot} />
+      {role && <Chat snapshot={snapshot} role={role} onDire={game.dire} />}
+    </div>
+  );
+}
+
+function Poste({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
   if (game.finished || snapshot.phase === "FINISHED") {
     return <Fin onLeave={game.leaveRoom} />;
   }
@@ -76,6 +97,74 @@ function Session({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
   return <Lobby snapshot={snapshot} onLeave={game.leaveRoom} />;
 }
 
+/**
+ * Le chat en jeu.
+ *
+ * Il vit dans l'etat synchronise, donc une reconnexion le rend intact sans que
+ * le client redemande quoi que ce soit. Le serveur decide de qui vient chaque
+ * ligne : ce composant n'annonce jamais son propre role.
+ *
+ * Les joueurs sont sur Discord ; ce chat sert a ce qui se transcrit mal a
+ * l'oral — une suite de signes, un ordre a relire.
+ */
+function Chat({
+  snapshot,
+  role,
+  onDire,
+}: {
+  snapshot: Snapshot;
+  role: string;
+  onDire: (text: string) => void;
+}) {
+  const [texte, setTexte] = useState("");
+  const lignes = useRef<HTMLOListElement>(null);
+
+  useEffect(() => {
+    const liste = lignes.current;
+    if (liste) liste.scrollTop = liste.scrollHeight;
+  }, [snapshot.chat.length]);
+
+  function envoyer(event: FormEvent): void {
+    event.preventDefault();
+    const dit = texte.trim();
+    if (dit.length === 0) return;
+    onDire(dit);
+    setTexte("");
+  }
+
+  return (
+    <section className="sheet chat">
+      <p className="label">Transcription</p>
+
+      <ol className="lignes" ref={lignes}>
+        {snapshot.chat.length === 0 && (
+          <li className="muted">Rien n'a encore ete consigne.</li>
+        )}
+        {snapshot.chat.map((ligne, rang) => (
+          <li key={rang} className={ligne.from === role ? "de-vous" : undefined}>
+            <span className="qui">{ligne.from}</span>
+            <span className="quoi">{ligne.text}</span>
+          </li>
+        ))}
+      </ol>
+
+      <form onSubmit={envoyer} className="dire">
+        <input
+          value={texte}
+          onChange={(event) => setTexte(event.target.value)}
+          maxLength={CHAT_MAX_CARACTERES}
+          autoComplete="off"
+          placeholder="Consigner une note"
+          aria-label="Consigner une note"
+        />
+        <button type="submit" disabled={texte.trim().length === 0}>
+          Consigner
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function Centered({ children }: { children: ReactNode }) {
   return (
     <main className="sheet">
@@ -106,6 +195,13 @@ function Home({
     <main className="sheet">
       <h1>Depot</h1>
       <p className="muted">Deux preposes. Une seule moitie du dossier chacun.</p>
+      {/*
+        Le papier est deja le filet du duo : ce qui se transmet d'une salle a
+        l'autre ne se retient pas de tete, et un couple qui a oublie glisse
+        vers la devinette parce qu'une erreur ne coute presque rien. On ne
+        rattrape pas ca par une mecanique, on l'assume par une phrase. Voir D66.
+      */}
+      <p className="muted">Prenez de quoi ecrire. Vous en aurez besoin.</p>
 
       <button type="button" className="primary" onClick={onCreate}>
         Ouvrir un dossier
@@ -683,9 +779,11 @@ function Aveugle({
       />
 
       <ul className="sensations">
-        <li className={view.surLeDepot ? "juste" : undefined}>
-          {view.surLeDepot ? "Le sol est dalle. C'est le depot." : "Le sol est nu."}
-        </li>
+        {/*
+          Le sol ne dit plus rien de l'arrivee : c'est A qui reconnait le lieu
+          a ce que B lui en decrit. Voir D71.
+        */}
+        <li>Le sol est nu.</li>
         {view.surLeJalon && <li className="juste">Un jalon sous vos pieds.</li>}
       </ul>
 
@@ -697,7 +795,26 @@ function Aveugle({
   );
 }
 
-/** Etat du tour engage, commun aux deux postes de la salle 4. */
+/**
+ * Une touche, quelle que soit sa monnaie : une signification ou une forme.
+ *
+ * Un poste peut tenir l'une ou l'autre monnaie selon la salle ; ce composant
+ * est le seul endroit du client qui ait a le savoir.
+ */
+function ToucheRendue({ touche }: { touche: Touche }) {
+  return touche.genre === "forme" ? (
+    <TraceGlyphe glyphe={touche.forme} />
+  ) : (
+    <span className="sens-touche">{touche.sens}</span>
+  );
+}
+
+/** Une touche est la meme quel que soit son cote : on la compare par sa clef. */
+function clefDeTouche(touche: Touche): string {
+  return touche.genre === "forme" ? touche.forme.id : touche.sens;
+}
+
+/** Etat du tour engage, commun aux deux postes des salles 4 et 5. */
 function Passe({
   engage,
   progres,
@@ -767,9 +884,9 @@ function Litanie({
       <p className="label">Suite a emettre</p>
       {view.suite ? (
         <ol className="suite">
-          {view.suite.map((sens, rang) => (
+          {view.suite.map((touche, rang) => (
             <li key={rang} className={rang < view.progres ? "juste" : undefined}>
-              {sens}
+              <ToucheRendue touche={touche} />
             </li>
           ))}
         </ol>
@@ -788,15 +905,15 @@ function Litanie({
 
       <p className="label">Vos touches</p>
       <div className="rangee">
-        {view.clavier.map((sens, index) => (
+        {view.clavier.map((touche, index) => (
           <button
-            key={sens}
+            key={clefDeTouche(touche)}
             type="button"
             className={`touche${view.votreEngagement === index ? " choisi" : ""}`}
             disabled={!view.engage || view.votreEngagement !== null}
             onClick={() => onAct({ type: "presser", index })}
           >
-            {sens}
+            <ToucheRendue touche={touche} />
           </button>
         ))}
       </div>
@@ -833,15 +950,15 @@ function ClavierDesFormes({
       </p>
 
       <div className="rangee">
-        {view.clavier.map((glyphe, index) => (
+        {view.clavier.map((touche, index) => (
           <button
-            key={glyphe.id}
+            key={clefDeTouche(touche)}
             type="button"
-            className={`glyphe${view.votreEngagement === index ? " choisi" : ""}`}
+            className={`touche${view.votreEngagement === index ? " choisi" : ""}`}
             disabled={!view.engage || view.votreEngagement !== null}
             onClick={() => onAct({ type: "presser", index })}
           >
-            <TraceGlyphe glyphe={glyphe} />
+            <ToucheRendue touche={touche} />
           </button>
         ))}
       </div>

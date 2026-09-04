@@ -31,6 +31,32 @@ apprendre les solutions.
   communication, d'architecture, de bugs, de perf.
 - Rendre le rapport sans spoil décrit en section 5.
 
+### Cas particulier : la salle 5
+
+Pour toutes les salles sauf la cinquième, parler mécanique est sans danger :
+la mécanique est le cadre, le contenu est la surprise.
+
+**En salle 5, la mécanique EST la surprise.** Le retournement est mécanique et
+narratif à la fois — c'est la contrainte de `docs/world-bible.md` section 7.
+Décrire comment la salle 5 fonctionne revient donc exactement à décrire le
+retournement, et l'autorisation générale de parler mécanique ne s'y applique
+pas.
+
+Sont couverts par le mur, au même titre que `content/prod/` :
+
+- la forme des vues de la salle 5 et qui tient quoi ;
+- ce qui change entre la salle 4 et la salle 5 ;
+- les valeurs que peut prendre l'inversion, et laquelle a été retenue ;
+- tout test, commentaire, journal de décision ou message de commit qui
+  décrirait l'un des trois points ci-dessus.
+
+Reste dicible : que la salle 5 existe, qu'elle porte un retournement, qu'elle
+réutilise la mécanique d'une salle précédente, et ses métriques au format de
+la section 5.
+
+Le raisonnement d'ingénierie qui a conduit aux choix de la salle 5 vit dans
+`content/prod/decisions-salle-05.enc`, chiffré comme le reste.
+
 ### En cas de doute
 
 Ne dis rien et signale-le : « Ce point touche à `content/prod/`, je ne peux
@@ -99,7 +125,7 @@ Détail complet dans `docs/puzzle-spec.md`.
 
 ## 4. Obligations de vérification
 
-Aucune énigme n'est considérée terminée sans ces quatre tests verts.
+Aucune énigme n'est considérée terminée sans ces cinq tests verts.
 
 1. **Solvabilité** : pour 500 seeds, `solve()` produit une séquence qui
    amène `isSolved() === true`.
@@ -112,6 +138,31 @@ Aucune énigme n'est considérée terminée sans ces quatre tests verts.
    Une énigme qui le rate n'est pas une énigme coopérative.
 4. **Budget de communication** : `metrics().discreteElements <= 15` pour
    tous les seeds testés. Voir section 5 de `docs/puzzle-spec.md`.
+5. **Résidu depuis une seule vue** : combien de mondes restent compatibles
+   avec la vue de A seule, puis avec celle de B seule. Le compte doit rester
+   au-dessus d'un plancher, des deux côtés, pour tous les seeds testés.
+
+   Le plancher n'est pas choisi, il se déduit — et il ne s'applique qu'à
+   proportion de ce qu'un rôle peut **sonder**. Énumérer des mondes ne sert à
+   rien si aucune action ne les départage : un rôle sans oracle ne peut pas
+   forcer sa moitié, quel que soit son résidu, et lui demander un gros résidu
+   déformerait la salle pour satisfaire une mesure qui ne mesure rien chez lui.
+
+   - aucune sonde — rien à exiger ;
+   - sonde comptée `k` fois — plus de `k + 1` mondes, le dernier se
+     reconnaissant par élimination ;
+   - oracle gratuit — le plancher de temps entier :
+
+         N × solutionDepth × 1 s  >  budget.targetMinutes[1] × 60 s
+
+   Le motif d'un refus compte au même titre que l'écran : C2 exige un échec
+   informatif, et un échec informatif est exactement l'endroit où un oracle se
+   cache.
+
+   L'obligation 2 mesure la résistance au hasard ; celle-ci mesure la
+   résistance à la déduction. Personne ne joue au hasard : c'est celle-ci qui
+   dit si un joueur peut se passer de son coéquipier. Une salle qui la rate
+   n'est pas mal réglée, elle est jouable en solo. Voir D70.
 
 Les tests ne doivent jamais imprimer de valeur de solution en cas d'échec.
 En échec, imprime le seed et l'identifiant de l'assertion, rien d'autre.
@@ -126,15 +177,56 @@ Après toute génération ou modification de `content/prod/`, rends
 
 ```
 Salle 3 — mise à jour
-Primitives      : lexique + topologie
-Éléments à transmettre (médiane / p95) : 9 / 13
-Temps de résolution estimé             : 5-8 min
-Allers-retours de communication        : ~11
-Point de friction anticipé             : description spatiale sous contrainte de temps
+Primitives                  : lexique + topologie
+Charge de communication     : moyenne (plafond C1 OK)
+Temps de résolution estimé  : 5-8 min
+Point de friction anticipé  : décrire l'espace sans repère partagé
 Tests : solvabilité OK (500) · rejet OK · asymétrie OK · budget OK
+Résidu depuis une seule vue : OK
 ```
 
 Pas de titre d'énigme évocateur, pas d'exemple, pas de « tu vas adorer ».
+
+**Ne fais pas figurer de cardinalité dans ce rapport** — nombre de glyphes,
+de cases, de signes d'une suite. Dans presque toutes les salles, « éléments à
+transmettre » et inventaire du contenu coïncident : une case, un glyphe, un
+pas. Le compte exact est donc sorti du rapport au profit d'une bande, et les
+allers-retours avec lui — ils s'en déduisaient. Le résidu de l'obligation 5
+est une cardinalité au même titre : il ne sort qu'en verdict.
+
+### Le rapport ne se recopie pas
+
+Il est **produit par programme**, jamais rédigé à la main :
+
+```bash
+pnpm --filter @coop/server content:obligations --rapport --fichier <chemin>
+```
+
+Dans une architecture où le destinataire ne peut rien revérifier lui-même, un
+rapport dont les chiffres passent par une rédaction manuelle ne vaut rien : la
+seule garantie qui lui reste est la bonne foi de qui l'a tapé, et tout le reste
+du projet existe pour ne pas en dépendre. Voir D76.
+
+### Deux rapports, jamais un seul
+
+Toute analyse destinée à un tiers produit **deux documents distincts** :
+
+1. **Le rapport propriétaire** — format ci-dessus, sans spoil, lisible par le
+   propriétaire du dépôt.
+2. **Le rapport d'analyse externe** — il peut tout dire, y compris la mécanique
+   de la salle 5 et le contenu de `content/prod/`. Il porte en première ligne,
+   seule et en capitales :
+
+   ```
+   NON LISIBLE PAR LE PROPRIÉTAIRE
+   ```
+
+   Le propriétaire le transmet sans l'ouvrir.
+
+Ne fusionne jamais les deux, et n'écris jamais un document unique « que le
+propriétaire ne lira pas » : c'est la formulation que la section 1 interdit.
+Un rapport qui transite par quelqu'un doit être illisible par lui, pas
+seulement déconseillé.
 
 ---
 

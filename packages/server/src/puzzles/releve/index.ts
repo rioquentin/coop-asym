@@ -8,6 +8,7 @@ import {
   type View,
 } from "@coop/shared";
 import type { PuzzleDefinition } from "../../content/types";
+import { arrangements, classeDeVue, permutations } from "../combinatoire";
 import { reprendreLeLexique } from "../lexique";
 import { cheminVers, creuser, enCoordonnees, voisin } from "../plan";
 import { melanger, rngDepuis } from "../rng";
@@ -358,6 +359,53 @@ export function creerModuleReleve(
         branchingFactor: Number((branches / plan.length).toFixed(2)),
         estimatedMinutes: definition.budget.targetMinutes,
       };
+    },
+
+    /**
+     * Le residu.
+     *
+     * Pour A : il voit OU l'on a grave, jamais QUOI. Toute redistribution des
+     * memes formes sur les memes cases lui laisse le meme ecran, et change la
+     * tournee du tout au tout.
+     * Pour B : il ne voit pas le registre. Tout ordre de releve tire des
+     * formes du lieu lui laisse le meme ecran. Le prefixe deja consigne est
+     * tenu fixe : il est acquis, donc il n'est plus inconnu.
+     */
+    candidats(
+      role: Role,
+      instance: ReleveInstance,
+      plafond: number,
+    ): ReleveInstance[] {
+      const reference = JSON.stringify(module.viewFor(role, instance));
+      const memeVue = (candidat: ReleveInstance): boolean =>
+        JSON.stringify(module.viewFor(role, candidat)) === reference;
+
+      const marquees: number[] = [];
+      instance.graves.forEach((glyphe, case_) => {
+        if (glyphe !== null) marquees.push(case_);
+      });
+      const formes = marquees.map((case_) => instance.graves[case_] as string);
+
+      if (role === "A") {
+        const propositions = permutations(formes, plafond).map((permutee) => {
+          const graves = [...instance.graves];
+          marquees.forEach((case_, i) => {
+            graves[case_] = permutee[i] as string;
+          });
+          return { ...instance, graves };
+        });
+        return classeDeVue(instance, propositions, memeVue, plafond);
+      }
+
+      const acquis = instance.ordre.slice(0, instance.progres);
+      const libres = formes.filter((forme) => !acquis.includes(forme));
+      const propositions = arrangements(
+        libres,
+        instance.ordre.length - acquis.length,
+        plafond,
+      ).map((suite) => ({ ...instance, ordre: [...acquis, ...suite] }));
+
+      return classeDeVue(instance, propositions, memeVue, plafond);
     },
 
     /**

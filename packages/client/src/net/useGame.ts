@@ -31,11 +31,22 @@ export interface PlayerSnapshot {
  * Vue locale de l'etat PUBLIC de la room. Le client ne recoit rien d'autre :
  * pas d'instance d'enigme, pas la vue de l'autre joueur.
  */
+/** Une ligne de chat, telle que l'etat synchronise la porte. */
+export interface Ligne {
+  from: string;
+  text: string;
+}
+
 export interface Snapshot {
   code: string;
   phase: RoomPhase;
   players: PlayerSnapshot[];
   selfSessionId: string;
+  /**
+   * L'historique du chat. Il vit dans l'etat synchronise, donc une
+   * reconnexion le rend sans que le client ait rien a redemander.
+   */
+  chat: Ligne[];
 }
 
 export type Status = "restoring" | "idle" | "connecting" | "connected";
@@ -66,6 +77,8 @@ export interface Game {
   joinRoom: (code: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
   act: (action: Action) => void;
+  /** Envoie une ligne de chat. Le serveur decide de qui elle vient. */
+  dire: (text: string) => void;
 }
 
 function describeError(error: unknown): string {
@@ -85,11 +98,17 @@ function toSnapshot(state: GameState, sessionId: string): Snapshot {
       connected: player.connected,
     });
   });
+  const chat: Ligne[] = [];
+  state.chat.forEach((ligne) => {
+    chat.push({ from: ligne.from, text: ligne.text });
+  });
+
   return {
     code: state.code,
     phase: state.phase as RoomPhase,
     players,
     selfSessionId: sessionId,
+    chat,
   };
 }
 
@@ -249,12 +268,18 @@ export function useGame(): Game {
     roomRef.current?.send(CLIENT_MESSAGE, message);
   }, []);
 
+  const dire = useCallback((text: string) => {
+    const message: ClientMessage = { t: "chat", text };
+    roomRef.current?.send(CLIENT_MESSAGE, message);
+  }, []);
+
   return {
     status,
     snapshot,
     error,
     view,
     salle,
+    dire,
     feedback,
     finished,
     createRoom,

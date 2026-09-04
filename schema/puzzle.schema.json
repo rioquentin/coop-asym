@@ -22,7 +22,7 @@
       "maxItems": 3,
       "uniqueItems": true,
       "items": {
-        "enum": ["LEXIQUE", "TOPOLOGIE", "SIMULTANEITE", "ETAT_CROISE"]
+        "enum": ["LEXIQUE", "TOPOLOGIE", "ETAT_CROISE"]
       }
     },
     "module": {

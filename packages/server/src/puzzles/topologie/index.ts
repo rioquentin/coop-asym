@@ -7,6 +7,7 @@ import {
   type View,
 } from "@coop/shared";
 import type { PuzzleDefinition } from "../../content/types";
+import { classeDeVue } from "../combinatoire";
 import {
   cheminVers,
   creuser,
@@ -57,6 +58,15 @@ export interface TopologieInstance {
   jalon: number | null;
   /** A a scelle alors que B etait sur le depot. */
   scelle: boolean;
+  /**
+   * A a deja tente de sceller sans que B ait bouge depuis.
+   *
+   * C'est ce qui interdit le scellement-sonde : une premiere tentative
+   * renseigne, les suivantes ne renseignent plus rien tant que le lieu n'a pas
+   * change. Sonder coute donc un deplacement du partenaire — c'est-a-dire de
+   * la cooperation. Voir D71.
+   */
+  sceauTente: boolean;
 }
 
 interface TopologieContent {
@@ -108,6 +118,11 @@ function lireContenu(definition: PuzzleDefinition): TopologieContent {
   };
 }
 
+/** Empreinte courte d'un plan, pour semer un tirage de facon deterministe. */
+function stableCourt(murs: Direction[][]): string {
+  return murs.map((cotes) => cotes.join("")).join("|");
+}
+
 function refus(hint: string): Feedback {
   return { kind: "rejected", hint };
 }
@@ -126,6 +141,7 @@ export function creerModuleTopologie(
     position: instance.depart,
     jalon: null,
     scelle: false,
+    sceauTente: false,
   });
 
   const module: PuzzleModule<TopologieInstance> = {
@@ -146,6 +162,7 @@ export function creerModuleTopologie(
           position: depot,
           jalon: null,
           scelle: false,
+          sceauTente: false,
         };
 
         const distances = distancesDepuis(provisoire, depot);
@@ -180,12 +197,15 @@ export function creerModuleTopologie(
         };
       }
 
-      // Ni plan, ni coordonnees. B sait quand il est arrive, jamais ou il est.
+      // Ni plan, ni coordonnees, et PLUS d'annonce d'arrivee : B ne sait
+      // jamais ou il se trouve, pas meme quand il y est. Le sol du depot ne se
+      // distingue de rien ; c'est A qui reconnait le lieu a ce que B lui en
+      // decrit, et le jalon est le seul mot qu'ils ont pour se le confirmer.
+      // Voir D71.
       const fermes = instance.murs[instance.position] ?? [];
       return {
         kind: "poste",
         ouvertures: DIRECTIONS.filter((d) => !fermes.includes(d)),
-        surLeDepot: instance.position === instance.depot,
         surLeJalon: instance.jalon === instance.position,
       };
     },
@@ -212,7 +232,12 @@ export function creerModuleTopologie(
         }
         // Bouger annule le scellement : c'est A qui arrete, sur une position sue.
         return {
-          instance: { ...instance, position: suivant, scelle: false },
+          instance: {
+            ...instance,
+            position: suivant,
+            scelle: false,
+            sceauTente: false,
+          },
           feedback: ACCEPTE,
         };
       }
@@ -243,8 +268,21 @@ export function creerModuleTopologie(
           return { instance, feedback: refus("Le plan n'est pas le votre.") };
         }
         if (instance.position !== instance.depot) {
-          // C2 : le refus dit ce qui manque, pas ou est le partenaire.
-          return { instance, feedback: refus("Le depot est vide.") };
+          // C2 : le refus dit ce qui manque, pas ou est le partenaire. Mais un
+          // refus qu'on peut rejouer a volonte n'est plus un refus, c'est un
+          // oracle : A le martelerait pendant que B erre, et la salle se
+          // gagnerait sans un mot. La premiere tentative renseigne ; les
+          // suivantes ne disent plus rien tant que B n'a pas bouge.
+          if (instance.sceauTente) {
+            return {
+              instance,
+              feedback: refus("Le registre ne repond plus. Faites bouger le lieu."),
+            };
+          }
+          return {
+            instance: { ...instance, sceauTente: true },
+            feedback: refus("Le depot est vide."),
+          };
         }
         return { instance: { ...instance, scelle: true }, feedback: ACCEPTE };
       }
@@ -321,6 +359,74 @@ export function creerModuleTopologie(
      * Pour B : meme plan, meme position, depot ailleurs. B percoit exactement
      * les memes ouvertures et n'est toujours pas arrive, mais le but a change.
      */
+    /**
+     * Le residu.
+     *
+     * Pour A : B peut etre n'importe ou. La classe compte donc une instance
+     * par case du plan, et rien de plus — A voit tout le reste.
+     * Pour B : il ignore et ou il est, et ou est le depot. On fait varier le
+     * couple dans le meme plan et on ne garde que ce qui lui rend exactement
+     * les memes ouvertures. C'est une minoration franche : B ne connait pas
+     * non plus le plan, et cette part-la n'est pas enumeree ici.
+     */
+    candidats(
+      role: Role,
+      instance: TopologieInstance,
+      plafond: number,
+    ): TopologieInstance[] {
+      const reference = JSON.stringify(module.viewFor(role, instance));
+      const memeVue = (candidat: TopologieInstance): boolean =>
+        JSON.stringify(module.viewFor(role, candidat)) === reference;
+
+      const propositions: TopologieInstance[] = [];
+
+      if (role === "A") {
+        for (let case_ = 0; case_ < total; case_++) {
+          propositions.push({ ...instance, depart: case_, position: case_ });
+        }
+      } else {
+        for (let ici = 0; ici < total; ici++) {
+          for (let depot = 0; depot < total; depot++) {
+            propositions.push({
+              ...instance,
+              depart: ici,
+              position: ici,
+              depot,
+            });
+          }
+        }
+
+        // B n'a JAMAIS vu le plan, et son ignorance est totale : ce n'est pas
+        // un mur qu'il ignore, c'est le lieu entier. N'enumerer qu'une
+        // variante a un mur pres reviendrait a mesurer l'incertitude de
+        // quelqu'un qui connaitrait deja le plan par coeur, a un detail pres.
+        //
+        // On tire donc des plans entiers, deterministes a partir de l'instance,
+        // et on ne garde que ceux ou B percoit exactement la meme chose. Le
+        // resultat reste une minoration — il y en a bien plus — mais elle
+        // n'est plus artificiellement petite.
+        const dessin = rngDepuis(
+          `residu/${stableCourt(instance.murs)}/${instance.position}`,
+        );
+        for (let essai = 0; essai < plafond * 4; essai++) {
+          const murs = creuser(
+            instance.largeur,
+            instance.hauteur,
+            contenu.boucles,
+            dessin,
+          );
+          const variante = { ...instance, murs };
+          // Un plan coupe en deux n'est pas un plan : le depot doit rester
+          // atteignable, sinon le candidat ne tient pas debout.
+          const distances = distancesDepuis(variante, variante.position);
+          if ((distances[variante.depot] as number) < 0) continue;
+          propositions.push(variante);
+        }
+      }
+
+      return classeDeVue(instance, propositions, memeVue, plafond);
+    },
+
     ambiguites(role: Role, instance: TopologieInstance): TopologieInstance[] {
       const reference = JSON.stringify(module.solve(instance));
 

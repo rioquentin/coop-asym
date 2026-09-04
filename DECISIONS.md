@@ -408,9 +408,9 @@ de vocabulaire de fantasy générique et l'absence de religion réelle nommée
 C'est la seule façon de vérifier un texte que personne ne relira jamais. Un
 contrôle à l'œil aurait supposé de le lire.
 
-Le champ `inversion.mecanique` ne prend que deux valeurs,
-`ROLES_ECHANGES` ou `LEXIQUE_INVERSE` : une session future implémentera la
-salle 5 en lisant ce champ par programme, sans avoir à afficher le reste.
+Le champ `inversion.mecanique` est contraint à un petit jeu de valeurs, pour
+qu'une session future puisse implémenter la salle 5 en le lisant **par
+programme**, sans jamais avoir à l'afficher.
 
 ### D38. `roomAdvance` porte l'habillage
 
@@ -659,6 +659,369 @@ Sans ça, A verrait la suite en significations et connaîtrait par là même les
 touches de B — sa vue déterminerait la solution entière et l'obligation
 d'asymétrie tomberait. Le témoin d'ambiguïté pour A est exactement ce
 décalage : même vue, clavier de B décalé, solution différente.
+
+---
+
+## Salle 5 — le retournement
+
+**Le raisonnement de cette salle est chiffre.**
+
+Pour les quatre premieres salles, parler mecanique est sans danger : la
+mecanique est le cadre, le contenu est la surprise. En salle 5 la mecanique EST
+la surprise — le retournement est mecanique et narratif a la fois. Consigner
+ici pourquoi les choix ont ete faits reviendrait a decrire le retournement.
+
+Les entrees D58 a D62 vivent donc dans `content/prod/decisions-salle-05.enc`,
+chiffrees comme le reste du contenu. Elles couvrent : ou vit l'inversion dans
+l'architecture, pourquoi le retournement se voit au lieu de se deviner, la
+mutualisation du module avec la salle 4, la lecture de la mecanique dans la
+trame sans que personne l'apprenne, et la verification des deux branches.
+
+Ce qui reste dicible et vaut d'etre note ici :
+
+### D58. La mecanique de la salle 5 est couverte par le mur
+
+Ajoute a `CLAUDE.md` §1 apres qu'une relecture externe a montre que
+l'autorisation generale de parler mecanique laissait passer le retournement.
+C'est un defaut de la specification d'origine, pas un accident d'ecriture.
+
+Portee de la correction, et ses limites :
+
+- `docs/puzzle-spec.md` §3 enumere deja les inversions possibles. L'espace
+  n'a jamais ete secret ; seul le choix l'est, et il l'est reste.
+- Le code doit nommer ces possibilites pour fonctionner. Il le peut : elles
+  sont dans la spec. Ce qu'il ne fait plus, c'est en decrire la forme.
+- **L'historique git conserve les versions non redigees.** La redaction reduit
+  l'exposition courante — un README, un journal parcouru d'un oeil — elle
+  n'efface pas `git log -p`. Reecrire l'historique d'une branche deja fusionnee
+  est une decision du proprietaire, pas une correction a prendre seul.
+
+---
+
+## Le chat
+
+### D63. Le chat vit dans l'état synchronisé, pas dans un message
+
+`docs/architecture.md` §5 déclare un message serveur
+`{ t: 'chat'; from; text }`, et §2 range le chat dans l'état partagé public.
+Les deux à la fois feraient deux sources de vérité pour la même chose — c'est
+le raisonnement de D8 sur le message `partner`.
+
+J'ai gardé l'état, pour une raison qui n'est pas seulement esthétique : §4
+exige qu'une reconnexion restitue **l'historique du chat**, et que « le joueur
+ne doit rien reperdre ». Dans l'état synchronisé, c'est gratuit — Colyseus
+renvoie l'état complet au retour. Avec des messages, il aurait fallu un rejeu
+à la reconnexion, c'est-à-dire du code qui n'existe que pour un cas et qu'on
+oublie de tester.
+
+Le variant `chat` reste déclaré au protocole, comme `partner`. Il sera câblé
+s'il devient utile.
+
+### D64. Le rôle d'une ligne vient du serveur, jamais du client
+
+`ClientMessage` ne porte que `text` : il n'existe aucun champ où un client
+pourrait annoncer de qui vient sa ligne. Le serveur lit le rôle dans l'état à
+partir de la session. Sans ça, n'importe qui pourrait écrire au nom de l'autre
+— ce qui, dans un jeu bâti sur « la seule chose qui puisse faire douter un
+joueur de son partenaire », serait une porte ouverte sur exactement le mauvais
+doute.
+
+Le texte est borné à 200 caractères et l'historique à 200 lignes. Une room vit
+une vingtaine de minutes : le plafond borne la mémoire sans qu'un duo bavard
+perde le fil.
+
+---
+
+### D65. Le résidu depuis une seule vue est une cinquième obligation
+
+L'obligation de rejet mesure la résistance au hasard : combien de marches
+aléatoires atteignent la victoire. C'est une mauvaise question — **personne ne
+joue au hasard**. La vraie menace est le joueur qui, plutôt que de parler,
+énumère les mondes compatibles avec son écran et les essaie.
+
+`candidats(role, instance, plafond)` rend jusqu'à `plafond` instances
+distinctes dont la vue pour ce rôle est identique au caractère près. Le harnais
+compte, et compare à un plancher.
+
+**Le plancher n'est pas choisi, il se déduit.** Essayer un candidat, c'est
+jouer une solution entière — `solutionDepth` actions. Forcer la salle depuis un
+seul écran doit coûter plus que le temps que la salle s'accorde à elle-même :
+
+    N × solutionDepth × 1 s  >  budget.targetMinutes[1] × 60 s
+
+Un seuil fixe aurait été un chiffre de confort. Celui-ci se recalcule pour
+chaque instance à partir de la salle elle-même, et il ne se négocie pas : une
+salle qui le rate est jouable en solo, ce qui est le contraire de l'objet.
+
+Trois garanties, vérifiées par le harnais et non accordées au module : chaque
+candidat rend la même vue, ils sont deux à deux distincts, et chacun est
+résoluble. Sans le troisième, un module gonflerait son résidu avec n'importe
+quel objet.
+
+Le compte rendu est une **minoration** : un module fait varier ce qu'il sait
+faire varier, jamais tout ce que le rôle ignore. C'est le bon sens de l'erreur
+pour un plancher — on ne peut que sous-estimer, donc jamais passer à tort.
+
+Conséquence immédiate, et c'était l'intérêt : le plancher mord une fois, sur la
+salle 2, des deux côtés. Voir D68.
+
+### D66. Le papier est assumé, pas rattrapé
+
+La continuité du lexique traverse les salles 1, 3 et 5 sans filet. Un duo qui a
+oublié glisse vers la devinette, parce qu'un échec coûte une demi-seconde et
+que deviner redevient rentable.
+
+Rien dans la mécanique ne peut corriger ça sans casser autre chose : durcir
+l'échec contredit C2, redonner le lexique contredit la continuité. Or le papier
+est **déjà** le filet réel — les joueurs prennent des notes de toute façon.
+
+Une phrase sur l'écran d'accueil : « Prenez de quoi écrire. Vous en aurez
+besoin. » Elle ne change aucune règle. Elle rend le filet légitime au lieu de
+le laisser clandestin.
+
+### D67. L'espace d'états est parcouru en entier, pas seulement sondé
+
+La détection des champs décisifs par perturbation a un angle mort structurel :
+elle **gèle** ce qu'elle juge incident, donc elle ne regarde jamais la région
+où ces champs varient. Deux champs anodins séparément peuvent décider ensemble.
+
+Deux renforcements, tous deux dans `obligations.ts` :
+
+- **Les paires.** On restaure deux champs à la fois, et on n'ajoute la paire
+  que si *aucun* de ses deux membres ne décidait seul. Sans cette réserve, on
+  réintroduirait le critère trop large corrigé en D43 et D47 — celui qui refuse
+  des parties gagnantes parfaitement légitimes.
+- **Le parcours exhaustif.** Sur les 25 premiers seeds, on énumère tout
+  l'espace d'états atteignable par `actionsPossibles`, et on vérifie que tout
+  état gagnant rencontré porte bien l'empreinte canonique. Le tirage aléatoire
+  *sonde* ; le parcours *tranche*.
+
+Le parcours est borné à 40 000 états. S'il bute, le seed est compté comme non
+conclu plutôt que comme prouvé, et un test le signale : croire à une preuve qui
+n'a pas eu lieu serait pire que de ne pas l'avoir tentée.
+
+Les contrôles chers tournent sur un échantillon en tête de liste ; les seeds
+étant déterministes, cet échantillon est le même d'une exécution à l'autre, et
+une régression ne peut pas s'y cacher par chance.
+
+### D68. La salle 2 échoue au plancher de résidu, et ce n'est pas un réglage
+
+Mesuré sur les cinq salles : quatre tiennent, la salle 2 échoue des deux côtés.
+
+Côté A, c'est structurel. A voit tout le plan sauf une chose — où est B. Son
+résidu **est** le nombre de cases, exactement, et aucune finesse d'énumération
+n'y changera rien. Il est sous le plancher que la salle se fixe elle-même par
+son propre budget de temps.
+
+Côté B, la première mesure était trompeuse : on n'énumérait que les couples
+(position, dépôt) dans un plan figé, alors que **B n'a jamais vu le plan**.
+Tout mur qui ne touche pas sa case peut être ailleurs sans qu'il en sache rien.
+Ces variantes sont maintenant énumérées ; le résidu de B a monté, et il échoue
+quand même.
+
+S'y ajoutent deux oracles gratuits que le plancher ne mesure pas mais qui
+relèvent de la même maladie : `surLeDepot` dit à B qu'il est arrivé, donc B peut
+errer au hasard jusqu'à l'arrivée sans un mot ; et le refus de `sceller` dit à A
+si B est sur le dépôt, donc A peut le marteler comme une sonde.
+
+**Tranché depuis, et autrement : voir D71.** Aucun des trois leviers envisagés
+ici n'était nécessaire — le défaut n'était pas la taille du monde, c'étaient
+deux oracles gratuits, et ils se ferment sans toucher à la salle.
+
+### D69. La clé vit hors du dépôt, et une erreur ne porte jamais d'état
+
+Deux fuites de la même famille, toutes deux hors du code du jeu.
+
+Le dépôt est dans un dossier synchronisé et `.env` était dedans : le
+fournisseur détenait le chiffré **et** la clé, c'est-à-dire le clair.
+`CONTENT_KEY` vit désormais dans `~/.coop-asym/.env`, `content:cle` l'y écrit,
+et `chargerEnv()` avertit quand le fichier qu'il lit est sous un dossier connu
+pour se synchroniser. Ce qui a déjà été synchronisé l'est resté : seule une
+rotation de clé — donc une régénération complète de `content/prod` — l'annule.
+Décision du propriétaire.
+
+Une exception levée en pleine partie tient l'instance dans sa portée. Un
+message construit par interpolation, un objet passé tel quel, et une solution
+traverse le mur — vers l'écran d'un joueur, ou vers un journal que le
+propriétaire lira. En production, `outils/erreurs.ts` ne laisse sortir que la
+classe de l'erreur et l'endroit : ni message, ni pile. Le client reçoit une
+valeur écrite dans le code, jamais dérivée de l'erreur.
+
+---
+
+### D70. Le plancher de résidu se mesure en sondes, pas en mondes
+
+Première version : « combien de mondes restent compatibles avec cette vue ».
+Elle punissait la salle 2 côté A pour une propriété structurelle et inoffensive
+— le seul inconnu de A est la position de son partenaire, donc son résidu vaut
+la taille du plan, et il ne peut rien en faire puisqu'il ne se déplace pas.
+Déformer la salle pour satisfaire cette mesure aurait été corriger le décor à
+la place du problème.
+
+Ce qui compte n'est pas combien de mondes restent, c'est **combien on peut en
+départager en agissant**. Une action dont le retour diffère d'un monde à
+l'autre est un oracle ; le reste est de l'énumération sans effet.
+
+`sondesAbordables` simule donc un joueur qui sonde et qui tient compte de ce
+qu'il voit : il joue, il regarde ce qui revient dans le monde vrai, il jette
+les mondes qui auraient répondu autrement, il recommence. Trois régimes :
+
+- **aucune sonde** — rien à exiger, ce rôle ne peut pas forcer sa moitié ;
+- **sonde comptée** (`k` fois) — on exige plus de `k + 1` mondes, parce que
+  `k` sondes départagent `k + 1` mondes, le dernier par élimination ;
+- **oracle gratuit** — on exige le plancher de temps entier.
+
+Le motif du refus compte au même titre que l'écran. C'est le point qui rend le
+contrôle utile : C2 exige un échec informatif, et un échec informatif est
+exactement l'endroit où un oracle se cache.
+
+**Une obligation que tout le monde passe ne vaut rien**, et les vraies salles
+ne peuvent pas le prouver puisqu'elles la passent. `plancher.test.ts` fabrique
+donc deux énigmes jumelles — même nombre de mondes, même budget, même solution
+— qui ne diffèrent que par la présence d'un oracle, et vérifie que le harnais
+les sépare. Sans lui, une erreur rendant `sondesAbordables` toujours nul
+laisserait l'obligation devenir décorative sans que rien ne vire au rouge.
+
+### D71. Salle 2 : les deux oracles étaient le même, et ils sont fermés
+
+D68 laissait la salle 2 en échec avec trois leviers, tous coûteux : agrandir le
+plan, ne pas partager l'orientation, ou rogner le budget de temps. Aucun n'était
+nécessaire. Le défaut n'était pas la taille du monde, c'étaient deux fuites.
+
+- **B savait qu'il était arrivé.** `surLeDepot` lui annonçait le dépôt sous ses
+  pieds. Il pouvait donc errer au hasard jusqu'à l'arrivée et dire un mot, un
+  seul. Le test d'intégration de la salle 2 faisait *exactement* ça, et il
+  passait — c'était la preuve écrite que la salle se gagnait sans coopérer.
+- **A pouvait marteler `sceller`.** Le refus « le dépôt est vide » est
+  informatif, donc conforme à C2 — mais rejouable à volonté, donc gratuit.
+
+Les deux ne font qu'un : l'arrivée était auto-évidente parce que la faire
+déduire par A ouvrait la porte du scellement-sonde.
+
+Fermés ensemble, sans toucher au plan ni au budget :
+
+- le sol du dépôt ne se distingue plus de rien ; c'est A qui reconnaît le lieu
+  à ce que B lui en décrit, et le jalon est le seul mot qu'ils ont pour se le
+  confirmer ;
+- un scellement refusé ne se rejoue plus tant que B n'a pas bougé. Sonder coûte
+  désormais un déplacement du partenaire, c'est-à-dire de la coopération.
+
+Pas de ressource comptée, donc pas d'état sans issue, donc rien à racheter sur
+C2 : le refus reste informatif la première fois, et ne ment jamais les fois
+suivantes — il dit qu'il ne dira plus rien.
+
+Le test d'intégration a été réécrit : A tient sur son plan l'ensemble des cases
+encore compatibles avec la description de B, et ne scelle que lorsqu'il n'en
+reste qu'une et que c'est le dépôt. Que la version précédente ne puisse plus
+s'écrire est le seul contrôle qui prouve tout ce qui précède.
+
+Le résidu de B, lui, était mal mesuré : on n'énumérait que des variantes à un
+mur près, alors que B n'a **jamais** vu le plan. On tire maintenant des plans
+entiers. Son ignorance est totale ; la mesure devait l'être aussi.
+
+### D72. Aucune planche ne tient en place
+
+Trois options avaient été chiffrées pour la salle 4 : une fenêtre de temps, une
+conséquence à l'erreur, ou des claviers remélangés à chaque tour. La troisième
+est retenue, et c'est la seule qui ne coûte rien à C2.
+
+L'argument qui a tranché n'est pas celui que j'avais avancé. **La conséquence
+à l'erreur est invisible pour un duo compétent** : elle ne se déclenche que sur
+faute, or la salle 4 est « zéro vocabulaire neuf, on applique l'acquis », donc
+un duo qui a bien joué les salles 1 et 3 ne se trompe pas et traverse la salle
+sans jamais rencontrer le mécanisme. Elle produit une formalité ou une
+punition, selon le niveau, et rien entre les deux.
+
+Le remélange, lui, mord uniformément et à chaque tour.
+
+**Correction d'une erreur de mon propre chiffrage.** J'avais présenté cette
+option comme coûtant du budget de communication, et donc exigeant de raccourcir
+la litanie d'un tiers. C'est faux, deux fois :
+
+- D57 mélangeait *déjà* les deux claviers séparément. Le raccourci positionnel
+  — « je mets la forme trois » — n'a jamais existé dans cette salle : aucun des
+  deux joueurs n'a jamais connu l'ordre de l'autre. Ce que le remélange tue
+  n'est pas un raccourci entre les joueurs, c'est la mémoire que chacun se
+  faisait de **sa propre** planche.
+- `discreteElements` vaut la longueur de la litanie et ne bouge pas d'un pouce.
+  Il n'y a donc pas de pression sur C1, et rien qui oblige à raccourcir.
+
+Ce qui reste, et qui est le vrai motif : plus personne n'a de vue stable, donc
+il n'y a rien à mémoriser, donc il ne reste qu'à relire et à nommer. C'est
+ÉTAT CROISÉ, et c'est ce qui a conduit à D73.
+
+### D73. SIMULTANÉITÉ est retirée : c'était une erreur de spécification
+
+Aucune des trois options ne restaurait la simultanéité. Seule la fenêtre de
+temps le faisait, et la fenêtre est mauvaise. Ce n'est pas une dérobade des
+implémentations successives, c'est que la primitive n'est pas réalisable ici :
+
+- le canal ne peut pas être coupé — les joueurs sont sur Discord, aucune
+  mécanique du jeu n'atteint leur vocal ;
+- le seul moyen de le couper est une fenêtre assez étroite pour que parler
+  coûte le tour, et une expiration est le seul échec du jeu qui n'apprend
+  rien. C2 l'interdit, et C2 ne se négocie pas.
+
+Un engagement aveugle sans fenêtre n'est pas de la simultanéité : les deux
+joueurs s'annoncent ce qu'ils vont presser, et pressent.
+
+Continuer à appeler la salle 4 « SIMULTANÉITÉ » aurait maintenu un vocabulaire
+faux dans la spécification, et un vocabulaire faux finit par produire des
+décisions fausses. La salle 4 est de l'ÉTAT CROISÉ — la primitive que le jeu
+n'utilisait nulle part.
+
+La primitive reste dans le type et dans `docs/puzzle-spec.md`, marquée retirée,
+pour que l'erreur reste lisible. Elle est retirée du schéma JSON et refusée au
+chargement : conservée comme trace, pas comme outil disponible.
+
+Les définitions de production ont été migrées sur place — déchiffrer, corriger
+le seul champ concerné, rechiffrer — plutôt que régénérées : une régénération
+aurait effacé l'habillage narratif pour un changement de vocabulaire.
+
+### D74. La clé n'est pas tournée
+
+Le déplacement hors du dépôt (D69) protège la suite, pas le passé :
+l'historique de versions du dossier synchronisé garde ce qui y est passé. Seule
+une rotation de clé l'annulerait, donc une régénération complète de
+`content/prod`, donc la perte de tout l'habillage.
+
+**Non fait, et volontairement.** L'adversaire de ce projet est le propriétaire
+par accident, pas le propriétaire déterminé. Aller chercher une clé dans un
+historique de versions pour déchiffrer son propre contenu n'est pas un
+accident : c'est une effraction en plusieurs étapes, délibérée à chacune. Le
+chiffrement n'a jamais été de la sécurité — c'est un garde-fou contre le
+fichier qu'on ouvre par erreur. Coût élevé, bénéfice nul contre la menace
+réelle.
+
+La règle générale, qui vaut au-delà de ce cas : **on corrige ce sur quoi on
+peut trébucher, on ignore ce qu'il faudrait forcer.** Voir D75, qui est le
+même raisonnement dans l'autre sens.
+
+### D75. L'historique git, lui, est réécrit
+
+Exactement l'asymétrie de D74. `git log -p`, un `blame`, une recherche dans
+l'historique, la vue d'historique de l'éditeur : ce sont des gestes ordinaires,
+faits sans y penser, plusieurs fois par semaine. On trébuche dessus. Le dépôt
+est solo, la réécriture est bon marché.
+
+Les versions non rédigées des décisions de la salle 5 ont été retirées de
+l'historique. Le raisonnement lui-même n'est pas perdu : il vit chiffré dans
+`content/prod/decisions-salle-05.enc`.
+
+### D76. Le rapport propriétaire n'est jamais recopié à la main
+
+Un rapport dont les chiffres passent par une rédaction manuelle ne vaut rien
+dans une architecture où le destinataire ne peut rien revérifier lui-même : la
+seule garantie qui lui reste est la bonne foi de qui l'a tapé, et tout le reste
+du projet est construit pour ne pas en dépendre.
+
+Le constat n'est pas théorique. Une ligne de verdict a été recopiée de travers
+dans un rapport rendu en conversation, puis corrigée à la main juste après —
+sur une salle qui, elle, passait.
+
+`content:obligations --rapport` produit le rapport depuis la sortie du harnais.
+`--fichier <chemin>` l'écrit sur le disque pour qu'il soit transmis tel quel.
+Rien entre les deux.
 
 ---
 

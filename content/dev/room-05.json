@@ -1,6 +1,6 @@
 {
-  "id": "dev-litanie-triviale",
-  "room": 4,
+  "id": "dev-retournement-trivial",
+  "room": 5,
   "primitives": [
     "ETAT_CROISE"
   ],
@@ -13,15 +13,14 @@
       "component": "LitaniePanel",
       "canAct": true,
       "sees": [
-        "suite",
-        "clavierA"
+        "clavier"
       ]
     },
     "B": {
       "component": "ClavierPanel",
       "canAct": true,
       "sees": [
-        "clavierB"
+        "clavier"
       ]
     }
   },
@@ -43,8 +42,9 @@
     "ambientText": "Contenu de developpement. Aucune valeur narrative."
   },
   "content": {
-    "_note": "FIXTURE. Suite minuscule, lexique de la fixture de la salle 1.",
+    "_note": "FIXTURE. L'inversion reelle de la salle 5 vit dans content/prod.",
     "lexiqueDe": "room-01",
-    "longueur": 5
+    "longueur": 5,
+    "inversion": "ROLES_ECHANGES"
   }
 }

@@ -13,7 +13,7 @@ import type { ResultatObligations } from "../puzzles/obligations";
 const NOM_PRIMITIVE: Record<Primitive, string> = {
   LEXIQUE: "lexique",
   TOPOLOGIE: "topologie",
-  SIMULTANEITE: "simultaneite",
+  SIMULTANEITE: "simultaneite (retiree)",
   ETAT_CROISE: "etat croise",
 };
 
@@ -24,12 +24,27 @@ const NOM_PRIMITIVE: Record<Primitive, string> = {
 const FRICTION: Record<Primitive, string> = {
   LEXIQUE: "nommer une forme qui n'a pas de nom",
   TOPOLOGIE: "decrire l'espace sans repere partage",
-  SIMULTANEITE: "tout planifier avant de ne plus pouvoir se parler",
+  SIMULTANEITE: "primitive retiree — voir docs/puzzle-spec.md",
   ETAT_CROISE: "tenir un modele du systeme sans vue stable",
 };
 
 function etat(ok: boolean): string {
   return ok ? "OK" : "ECHEC";
+}
+
+/**
+ * La charge de communication en bande, jamais en nombre.
+ *
+ * Pour la plupart des salles, « elements a transmettre » et inventaire du
+ * contenu coincident : une case, un glyphe, un pas. Imprimer le compte, c'est
+ * donc imprimer une cardinalite du contenu, et une cardinalite se remonte.
+ * Une bande dit ce que le proprietaire a besoin de savoir — est-ce que ca
+ * tient — sans dire de quoi c'est fait. CLAUDE.md section 5.
+ */
+function bande(elements: number): string {
+  if (elements <= 5) return "faible";
+  if (elements <= 10) return "moyenne";
+  return "elevee";
 }
 
 export function rapportSansSpoil(
@@ -50,17 +65,15 @@ export function rapportSansSpoil(
 
   return [
     `Salle ${definition.room} — mise a jour`,
-    `Primitives                             : ${primitives}`,
-    `Elements a transmettre (mediane / p95) : ${m.discreteElementsMediane} / ${m.discreteElementsP95}`,
-    `Temps de resolution estime             : ${min}-${max} min`,
-    `Allers-retours de communication        : ~${m.exchanges}`,
-    `Point de friction anticipe             : ${friction}`,
+    `Primitives                  : ${primitives}`,
+    `Charge de communication     : ${bande(m.discreteElementsP95)} (plafond C1 ${etat(resultat.budget)})`,
+    `Temps de resolution estime  : ${min}-${max} min`,
+    `Point de friction anticipe  : ${friction}`,
     `Tests : solvabilite ${etat(resultat.solvabilite)} (${resultat.seedsTestes})` +
       ` · rejet ${etat(resultat.rejet)}` +
       ` · asymetrie ${etat(resultat.asymetrie)}` +
       ` · budget ${etat(resultat.budget)}`,
-    `Resistance au hasard : ${resultat.victoiresFortuites} victoires fortuites` +
-      ` sur ${resultat.seedsTestes * resultat.tiragesParSeed} marches`,
+    `Residu depuis une seule vue : ${etat(resultat.residu)}`,
   ].join("\n");
 }
 

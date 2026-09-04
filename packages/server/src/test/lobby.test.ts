@@ -132,6 +132,7 @@ describe("lobby", () => {
       // Garde-fou : si une donnee d'enigme ou une vue arrive un jour dans
       // l'etat partage, ce test tombe avant qu'un joueur ne la lise.
       expect(Object.keys(room.state.toJSON()).sort()).toEqual([
+        "chat",
         "code",
         "phase",
         "players",

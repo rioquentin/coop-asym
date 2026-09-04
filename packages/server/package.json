@@ -17,7 +17,11 @@
     "content:controler-trame": "tsx src/outils/controler-trame.ts",
     "content:salle-02": "tsx src/outils/generer-salle-02.ts",
     "content:salle-03": "tsx src/outils/generer-salle-03.ts",
-    "content:salle-04": "tsx src/outils/generer-salle-04.ts"
+    "content:salle-04": "tsx src/outils/generer-salle-04.ts",
+    "content:salle-05": "tsx src/outils/generer-salle-05.ts",
+    "content:obligations": "tsx src/outils/obligations-chaine.ts",
+    "content:decisions-05": "tsx src/outils/archiver-decisions-05.ts",
+    "content:migrer-primitive": "tsx src/outils/migrer-primitive.ts"
   },
   "dependencies": {
     "@colyseus/core": "^0.18.10",

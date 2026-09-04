@@ -1,6 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { Room, logger, type Client } from "@colyseus/core";
 import {
+  CHAT_MAX_CARACTERES,
+  CHAT_MAX_LIGNES,
+  ChatEntry,
   CLIENT_MESSAGE,
   GameState,
   PlayerState,
@@ -15,6 +18,7 @@ import {
 import { CHAINE_DES_SALLES } from "../content/chaine";
 import { chargerDefinition } from "../content/loader";
 import type { PuzzleDefinition } from "../content/types";
+import { garde } from "../outils/erreurs";
 import { chargerModule, type OpaquePuzzleModule } from "../puzzles/registry";
 import { allocateRoomCode } from "./roomCode";
 
@@ -82,7 +86,13 @@ export class GameRoom extends Room<{ state: GameState }> {
     logger.info(`[room ${this.roomId}] seed=${this.seed}`);
 
     this.onMessage(CLIENT_MESSAGE, (client: Client, message: ClientMessage) => {
-      this.handleClientMessage(client, message);
+      // Une exception levee ici tient l'instance dans sa portee : elle ne doit
+      // atteindre ni le client, ni les journaux. Voir outils/erreurs.ts.
+      garde(
+        `room/${this.roomId}/message`,
+        () => this.handleClientMessage(client, message),
+        undefined,
+      );
     });
 
     this.armTtl();
@@ -172,10 +182,13 @@ export class GameRoom extends Room<{ state: GameState }> {
       case "action":
         this.handleAction(client, message);
         return;
+      case "chat":
+        this.handleChat(client, message);
+        return;
       case "ping":
         return;
       default:
-        // `chat` et `ready` sont declares au protocole mais pas encore cables.
+        // `ready` est declare au protocole mais pas encore cable.
         return;
     }
   }
@@ -224,6 +237,48 @@ export class GameRoom extends Room<{ state: GameState }> {
       this.pushViews();
       if (salle.module.isSolved(this.instance)) this.salleSuivante();
     }
+  }
+
+  /**
+   * Une ligne de chat.
+   *
+   * Le texte vient du reseau : on le borne et on le nettoie avant de le poser
+   * dans l'etat. Le role, lui, n'est jamais celui que le client annonce — le
+   * serveur le lit dans l'etat, sinon n'importe qui pourrait parler au nom de
+   * l'autre.
+   */
+  private handleChat(
+    client: Client,
+    message: Extract<ClientMessage, { t: "chat" }>,
+  ): void {
+    const role = this.roleOf(client);
+    if (!role) {
+      this.sendTo(client, {
+        t: "feedback",
+        kind: "rejected",
+        hint: "La partie n'a pas commence.",
+      });
+      return;
+    }
+
+    const text =
+      typeof message.text === "string" ? message.text.trim() : "";
+    if (text.length === 0) return;
+    if (text.length > CHAT_MAX_CARACTERES) {
+      this.sendTo(client, {
+        t: "feedback",
+        kind: "rejected",
+        hint: `Message trop long (${CHAT_MAX_CARACTERES} caracteres au plus).`,
+      });
+      return;
+    }
+
+    // Une room vit une vingtaine de minutes ; le plafond borne la memoire sans
+    // qu'un duo bavard perde le fil.
+    if (this.state.chat.length >= CHAT_MAX_LIGNES) {
+      this.state.chat.splice(0, this.state.chat.length - CHAT_MAX_LIGNES + 1);
+    }
+    this.state.chat.push(new ChatEntry({ from: role, text }));
   }
 
   /** Salle resolue : on avance dans la chaine, ou on termine. */

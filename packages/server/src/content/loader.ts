@@ -103,6 +103,18 @@ export function validerDefinition(definition: unknown, nom: string): void {
     erreursDuValidateur = () => compile.errors ?? [];
   }
 
+  // SIMULTANEITE est restee dans le vocabulaire pour que l'erreur reste
+  // lisible (docs/puzzle-spec.md section 2), pas pour qu'on la reprenne : elle
+  // n'est pas realisable sous C2 avec un vocal externe. Une definition qui la
+  // declare est refusee au chargement. Voir D73.
+  const primitives = (definition as { primitives?: unknown }).primitives;
+  if (Array.isArray(primitives) && primitives.includes("SIMULTANEITE")) {
+    throw new Error(
+      `Definition "${nom}" : SIMULTANEITE est une primitive retiree. ` +
+        "Voir docs/puzzle-spec.md section 2.",
+    );
+  }
+
   if (validateur(definition)) return;
 
   // On ne rapporte QUE le chemin et le motif. Jamais la valeur fautive :

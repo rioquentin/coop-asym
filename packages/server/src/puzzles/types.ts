@@ -76,4 +76,30 @@ export interface PuzzleModule<I> {
    * le module fabrique le temoin, donc la preuve ne depend pas de la chance.
    */
   ambiguites(role: Role, instance: I): I[];
+
+  /**
+   * Le RESIDU : jusqu'a `plafond` instances distinctes, celle-ci comprise,
+   * dont la vue pour `role` est identique au caractere pres.
+   *
+   * `ambiguites` repond « il en existe au moins deux » ; ce n'est pas la meme
+   * question. Personne ne joue au hasard : la menace n'est pas la victoire
+   * fortuite, c'est le joueur qui deduit. Ce qui compte est donc COMBIEN de
+   * mondes lui restent une fois sa vue epuisee, et si les essayer un par un
+   * coute plus cher que de parler a son partenaire.
+   *
+   * Deux proprietes du contrat :
+   *
+   * - la liste est bornee par `plafond` — un residu de plusieurs milliers ne
+   *   s'enumere pas, et un plancher ne demande qu'un « au moins N » ;
+   * - elle peut ne decrire qu'une PARTIE de la classe d'equivalence. Un module
+   *   fait varier ce qu'il sait faire varier ; il n'est jamais tenu d'exhiber
+   *   tout ce que le role ignore. Le compte est donc une minoration, ce qui
+   *   est le bon sens de l'erreur pour un plancher.
+   *
+   * Le harnais ne fait pas confiance a ce qui sort d'ici : il verifie que
+   * chaque instance rendue a bien la meme vue, qu'elles sont deux a deux
+   * distinctes, et que chacune est resoluble. Un module ne peut donc pas
+   * gonfler son residu en fabriquant des objets qui ne tiennent pas debout.
+   */
+  candidats(role: Role, instance: I, plafond: number): I[];
 }

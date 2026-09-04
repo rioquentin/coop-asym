@@ -21,7 +21,7 @@ import { rapportDEchec, rapportSansSpoil } from "./rapport";
  * chaque partie depuis le seed. Le lexique est REPRIS de la salle 1 — zero
  * vocabulaire neuf, comme l'exige docs/puzzle-spec.md section 3.
  *
- * Cahier des charges : SIMULTANEITE seule, 8 a 12 elements a transmettre,
+ * Cahier des charges : ETAT_CROISE seul, 8 a 12 elements a transmettre,
  * 4 a 7 minutes.
  */
 
@@ -31,7 +31,7 @@ const DOSSIER_PROD = join(RACINE, "content/prod");
 const definition: PuzzleDefinition = {
   id: "salle-04",
   room: 4,
-  primitives: ["SIMULTANEITE"],
+  primitives: ["ETAT_CROISE"],
   module: "src/puzzles/litanie/index.ts",
   reusesLexiconFrom: ["salle-01"],
   roles: {

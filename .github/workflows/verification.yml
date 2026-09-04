@@ -1,0 +1,27 @@
+name: verification
+
+# Les quatre obligations de CLAUDE.md section 4, plus la cinquieme, sur les
+# fixtures de content/dev. content/prod n'entre jamais ici : la cle n'a rien a
+# faire chez un fournisseur d'integration continue, et le contenu reel se
+# verifie a la main avec content:obligations.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm -r test

@@ -2,18 +2,20 @@ import { describe, expect, it } from "vitest";
 import type { Role } from "@coop/shared";
 import { CHAINE_DES_SALLES } from "../content/chaine";
 import { chargerDefinition } from "../content/loader";
+import type { PuzzleDefinition } from "../content/types";
 import {
   PLAFOND_C1,
   seedsDeVerification,
   stable,
   verifierObligations,
 } from "../puzzles/obligations";
+import { INVERSIONS } from "../puzzles/litanie";
 import { chargerModule } from "../puzzles/registry";
 import { rngDepuis } from "../puzzles/rng";
 import type { PlannedAction } from "../puzzles/types";
 
 /**
- * Les quatre obligations de verification, sur TOUTE la chaine des salles.
+ * Les cinq obligations de verification, sur TOUTE la chaine des salles.
  * CLAUDE.md section 4.
  *
  * Le coeur du controle vit dans src/puzzles/obligations.ts, partage avec
@@ -29,6 +31,19 @@ import type { PlannedAction } from "../puzzles/types";
 const SEEDS = seedsDeVerification(500);
 const ROLES: Role[] = ["A", "B"];
 
+/** Le poste qui tient la suite, et celui qui n'a qu'un clavier. */
+const CLES_CLAVIER = [
+  "clavier",
+  "dernierTour",
+  "engage",
+  "kind",
+  "partenairePret",
+  "progres",
+  "total",
+  "votreEngagement",
+];
+const CLES_LITANIE = [...CLES_CLAVIER, "suite"].sort();
+
 /**
  * Les cles que chaque vue a le droit de porter, par module.
  *
@@ -37,40 +52,27 @@ const ROLES: Role[] = ["A", "B"];
  * appartient a l'autre.
  */
 const CLES_DE_VUE: Record<string, Record<Role, string[]>> = {
-  "src/puzzles/lexicon/index.ts": {
+  "src/puzzles/lexicon/index.ts|1": {
     A: ["kind", "slots", "tray"],
     B: ["kind", "legend", "slots", "target"],
   },
-  "src/puzzles/topologie/index.ts": {
+  "src/puzzles/topologie/index.ts|2": {
     A: ["depot", "hauteur", "jalon", "kind", "largeur", "murs"],
-    B: ["kind", "ouvertures", "surLeDepot", "surLeJalon"],
+    B: ["kind", "ouvertures", "surLeJalon"],
   },
-  "src/puzzles/releve/index.ts": {
+  "src/puzzles/releve/index.ts|3": {
     A: ["attendus", "hauteur", "kind", "largeur", "marques", "murs", "progres"],
     B: ["grave", "kind", "ouvertures", "progres"],
   },
-  "src/puzzles/litanie/index.ts": {
-    A: [
-      "clavier",
-      "dernierTour",
-      "engage",
-      "kind",
-      "partenairePret",
-      "progres",
-      "suite",
-      "total",
-      "votreEngagement",
-    ],
-    B: [
-      "clavier",
-      "dernierTour",
-      "engage",
-      "kind",
-      "partenairePret",
-      "progres",
-      "total",
-      "votreEngagement",
-    ],
+  // Salle 4 : A tient la suite. Salle 5 : le retournement la fait changer de
+  // main — d'ou la clef par module ET par salle.
+  "src/puzzles/litanie/index.ts|4": {
+    A: CLES_LITANIE,
+    B: CLES_CLAVIER,
+  },
+  "src/puzzles/litanie/index.ts|5": {
+    A: CLES_CLAVIER,
+    B: CLES_LITANIE,
   },
 };
 
@@ -129,6 +131,48 @@ for (const salle of CHAINE_DES_SALLES) {
       );
     });
 
+    it("obligation 5 — residu depuis une seule vue", () => {
+      // On ne dit ni le residu, ni le seuil : ce sont des cardinalites, et une
+      // cardinalite se remonte au contenu. Seul le verdict sort.
+      //
+      // Le seuil se calcule seed par seed — il depend de la profondeur de la
+      // solution, qui varie d'une instance a l'autre. Comparer ici le plus
+      // petit residu observe au plus grand seuil observe reviendrait a croiser
+      // deux seeds differents : c'est le harnais qui compare, et par seed.
+      expect(resultat.residu).toBe(true);
+      expect(resultat.residuMinimum.A).toBeGreaterThan(1);
+      expect(resultat.residuMinimum.B).toBeGreaterThan(1);
+    });
+
+    it("l'espace d'etats a ete parcouru en entier, pas seulement sonde", () => {
+      // Le tirage au hasard sonde ; le parcours tranche. Si l'espace explose,
+      // on veut le savoir plutot que de croire a une preuve qui n'a pas eu
+      // lieu. Voir D67.
+      expect(resultat.seedsExplores).toBeGreaterThan(0);
+      expect(resultat.seedsTropGrands).toBe(0);
+    });
+
+    it("le residu rendu par le module tient son contrat", () => {
+      // Un module pourrait gonfler son residu avec n'importe quoi. On refait
+      // le controle ici, hors du harnais, sur un seed.
+      const seed = SEEDS[0] as string;
+      const instance = enigme.generate(seed);
+
+      for (const role of ROLES) {
+        const classe = enigme.candidats(role, instance, 8);
+        expect(classe.length).toBeGreaterThan(1);
+        expect(stable(classe[0])).toBe(stable(instance));
+
+        const vue = stable(enigme.viewFor(role, instance));
+        const vus = new Set<string>();
+        for (const candidat of classe) {
+          expect(stable(enigme.viewFor(role, candidat))).toBe(vue);
+          expect(vus.has(stable(candidat))).toBe(false);
+          vus.add(stable(candidat));
+        }
+      }
+    });
+
     it("l'ambiguite se constate aussi sans temoin fabrique", () => {
       // Deuxieme angle, independant du module : on regroupe 500 instances par
       // vue et on verifie qu'une meme vue recouvre plusieurs solutions.
@@ -159,7 +203,7 @@ for (const salle of CHAINE_DES_SALLES) {
     });
 
     it("aucune vue ne porte un champ de trop", () => {
-      const attendues = CLES_DE_VUE[definition.module];
+      const attendues = CLES_DE_VUE[`${definition.module}|${definition.room}`];
       expect(attendues, `cles de vue non declarees : ${definition.module}`)
         .toBeDefined();
 
@@ -220,6 +264,59 @@ for (const salle of CHAINE_DES_SALLES) {
   });
 }
 
+describe("retournement de la salle 5", () => {
+  // Ce bloc est volontairement muet sur CE que fait chaque variante : en
+  // salle 5, la mecanique est couverte par le mur au meme titre que le
+  // contenu (CLAUDE.md section 1). Il verifie qu'elles tiennent, pas ce
+  // qu'elles sont.
+  //
+  // Les variantes sont lues dans le module plutot qu'ecrites ici, pour que ce
+  // fichier n'enumere rien.
+  const base = JSON.parse(
+    JSON.stringify(chargerDefinition(CHAINE_DES_SALLES[4] as string)),
+  ) as PuzzleDefinition;
+
+  const variantes = INVERSIONS.filter((v) => v !== "AUCUNE");
+
+  it("propose plus d'une variante", () => {
+    expect(variantes.length).toBeGreaterThan(1);
+  });
+
+  variantes.forEach((inversion, rang) => {
+    const definition: PuzzleDefinition = {
+      ...base,
+      content: { ...base.content, inversion },
+    };
+    const enigme = chargerModule(definition);
+    const resultat = verifierObligations(
+      enigme,
+      definition,
+      seedsDeVerification(200, `inv-${rang}`),
+    );
+
+    // Le contenu reel en a retenu une, et je ne sais pas laquelle : les deux
+    // doivent donc tenir, sinon celle qui est jouee pourrait etre la mauvaise.
+    it(`tient les quatre obligations, variante ${rang + 1}`, () => {
+      expect(resultat.echecs).toEqual([]);
+      expect(resultat.solvabilite).toBe(true);
+      expect(resultat.rejet).toBe(true);
+      expect(resultat.asymetrie).toBe(true);
+      expect(resultat.budget).toBe(true);
+    });
+
+    it(`retourne effectivement quelque chose, variante ${rang + 1}`, () => {
+      const salle4 = chargerModule(
+        chargerDefinition(CHAINE_DES_SALLES[3] as string),
+      );
+      const apres = enigme.viewFor("A", enigme.generate("retournement"));
+      const avant = salle4.viewFor("A", salle4.generate("retournement"));
+
+      // Quelque chose a change de cote pour A, sans qu'on dise quoi.
+      expect(stable(apres)).not.toBe(stable(avant));
+    });
+  });
+});
+
 describe("chaine des salles", () => {
   it("suit l'echelle de docs/puzzle-spec.md section 3", () => {
     const definitions = CHAINE_DES_SALLES.map((s) => chargerDefinition(s));
@@ -233,8 +330,11 @@ describe("chaine des salles", () => {
     expect(definitions[0]?.primitives).toEqual(["LEXIQUE"]);
     expect(definitions[1]?.primitives).toEqual(["TOPOLOGIE"]);
     expect(definitions[2]?.primitives).toEqual(["LEXIQUE", "TOPOLOGIE"]);
-    // Salle 4 : SIMULTANEITE sur acquis, zero vocabulaire neuf.
-    expect(definitions[3]?.primitives).toEqual(["SIMULTANEITE"]);
+    // Salle 4 : ETAT_CROISE sur acquis, zero vocabulaire neuf. Voir D73.
+    expect(definitions[3]?.primitives).toEqual(["ETAT_CROISE"]);
+    // Salle 5 : l'inversion. Meme mecanique, postes retournes.
+    expect(definitions[4]?.primitives).toEqual(["ETAT_CROISE"]);
+    expect(definitions[4]?.module).toBe(definitions[3]?.module);
   });
 
   it("respecte la regle de continuite du lexique", () => {

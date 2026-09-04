@@ -10,6 +10,11 @@
 export type Primitive =
   | "LEXIQUE"
   | "TOPOLOGIE"
+  /**
+   * Retiree : inimplementable sous C2 avec un vocal externe. Conservee dans
+   * le vocabulaire pour que l'erreur reste lisible, refusee au chargement.
+   * Voir docs/puzzle-spec.md section 2 et D73.
+   */
   | "SIMULTANEITE"
   | "ETAT_CROISE";
 
@@ -119,14 +124,14 @@ export interface PlanView {
 /**
  * Vue de B : ce qu'on percoit d'une case, et rien de plus.
  *
- * Ne contient ni plan, ni coordonnees. B sait quand il est arrive, jamais ou
- * il se trouve.
+ * Ni plan, ni coordonnees, ni annonce d'arrivee : B ne sait jamais ou il se
+ * trouve, pas meme quand il y est. Le jalon est le seul mot que le duo ait
+ * pour se confirmer un lieu. Voir D71.
  */
 export interface PosteView {
   kind: "poste";
   /** Les cotes par lesquels on peut sortir de la case courante. */
   ouvertures: Direction[];
-  surLeDepot: boolean;
   surLeJalon: boolean;
 }
 
@@ -189,7 +194,7 @@ export type ReleveAction =
   | { type: "sceller" };
 
 // ---------------------------------------------------------------------------
-// Primitive SIMULTANEITE
+// Primitive ETAT_CROISE
 // ---------------------------------------------------------------------------
 
 /** Resultat du dernier tour engage. */
@@ -217,29 +222,39 @@ interface EtatDePasse {
 }
 
 /**
- * Vue de A : les significations, et la suite a emettre.
+ * Une touche : soit une signification, soit une forme.
+ *
+ * Les deux monnaies du lexique. Chaque poste n'en tient qu'une — et la salle 5
+ * les echange, ce qui suffit a retourner toutes les habitudes du duo.
+ */
+export type Touche =
+  | { genre: "sens"; sens: string }
+  | { genre: "forme"; forme: Glyphe };
+
+/**
+ * Le poste qui tient la suite et arme le mecanisme.
  *
  * `suite` disparait des que le mecanisme est engage : ce qui n'a pas ete
- * memorise est perdu jusqu'a ce qu'on relache. C'est toute la salle.
+ * memorise est perdu jusqu'a ce qu'on relache. C'est toute la salle 4.
  */
 export interface LitanieView extends EtatDePasse {
   kind: "litanie";
-  /** Les significations, dans l'ordre du clavier de A. Tire du seed. */
-  clavier: string[];
-  /** La suite a emettre, en significations. Null tant que c'est engage. */
-  suite: string[] | null;
+  /** Les touches de ce poste, dans un ordre tire du seed. */
+  clavier: Touche[];
+  /** La suite a emettre, dans la meme monnaie. Null tant que c'est engage. */
+  suite: Touche[] | null;
 }
 
 /**
- * Vue de B : les formes, et rien d'autre.
+ * Le poste qui n'a qu'un clavier.
  *
- * B ne voit jamais la suite. Il ne connait que ce que A lui a dit avant que
- * le mecanisme parte, et la correspondance apprise en salle 1.
+ * Il ne voit jamais la suite. Il ne connait que ce que l'autre lui a dit avant
+ * que le mecanisme parte, et la correspondance apprise en salle 1.
  */
 export interface ClavierView extends EtatDePasse {
   kind: "clavier";
-  /** Les glyphes, dans l'ordre du clavier de B. Tire du seed. */
-  clavier: Glyphe[];
+  /** Les touches de ce poste, dans un ordre tire du seed. */
+  clavier: Touche[];
 }
 
 export type SimultaneiteView = LitanieView | ClavierView;

@@ -1,24 +1,35 @@
 {
   "id": "dev-lexique-trivial",
   "room": 1,
-  "primitives": ["LEXIQUE"],
+  "primitives": [
+    "LEXIQUE"
+  ],
   "module": "src/puzzles/lexicon/index.ts",
   "roles": {
     "A": {
       "component": "GlyphGrid",
       "canAct": true,
-      "sees": ["glyphs", "slots"]
+      "sees": [
+        "glyphs",
+        "slots"
+      ]
     },
     "B": {
       "component": "LegendPanel",
       "canAct": true,
-      "sees": ["legend", "targetOrder"]
+      "sees": [
+        "legend",
+        "targetOrder"
+      ]
     }
   },
   "budget": {
-    "maxDiscreteElements": 4,
-    "targetExchanges": 5,
-    "targetMinutes": [1, 2]
+    "maxDiscreteElements": 5,
+    "targetExchanges": 6,
+    "targetMinutes": [
+      1,
+      2
+    ]
   },
   "failure": {
     "costSeconds": 0.5,
@@ -31,14 +42,27 @@
   },
   "content": {
     "_note": "FIXTURE. Volontairement triviale et lisible. Ne jamais copier ce niveau de difficulté dans content/prod.",
-    "glyphs": ["carre", "rond", "triangle", "croix"],
+    "glyphs": [
+      "carre",
+      "rond",
+      "triangle",
+      "croix",
+      "losange"
+    ],
     "legend": {
       "carre": "un",
       "rond": "deux",
       "triangle": "trois",
-      "croix": "quatre"
+      "croix": "quatre",
+      "losange": "cinq"
     },
-    "slots": 4,
-    "targetOrder": ["rond", "croix", "carre", "triangle"]
+    "slots": 5,
+    "targetOrder": [
+      "rond",
+      "croix",
+      "carre",
+      "losange",
+      "triangle"
+    ]
   }
 }

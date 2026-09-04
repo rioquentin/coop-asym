@@ -1,5 +1,6 @@
 import type { Action, Glyphe, PuzzleMetrics, Role, View } from "@coop/shared";
 import type { PuzzleDefinition } from "../../content/types";
+import { classeDeVue, permutations } from "../combinatoire";
 import { decaler, melanger, rngDepuis } from "../rng";
 import {
   MARQUES_MAX,
@@ -390,6 +391,51 @@ export function creerModuleLexique(
      * de A est decale, donc les positions a annoncer changent. Les index poses
      * sont reindexes pour que la vue de B ne bouge pas d'un iota.
      */
+    /**
+     * Le residu.
+     *
+     * A ne voit ni la legende ni la cible : toute permutation de la cible lui
+     * laisse exactement le meme ecran. B ne voit pas le plateau : toute
+     * permutation du plateau, index poses reindexes, lui laisse le meme. Dans
+     * les deux cas la classe compte n! elements ; on n'en rend que le plafond.
+     */
+    candidats(
+      role: Role,
+      instance: LexiconInstance,
+      plafond: number,
+    ): LexiconInstance[] {
+      const memeVue = (candidat: LexiconInstance): boolean =>
+        JSON.stringify(this.viewFor(role, candidat)) ===
+        JSON.stringify(this.viewFor(role, instance));
+
+      if (role === "A") {
+        return classeDeVue(
+          instance,
+          permutations(instance.target, plafond).map((target) => ({
+            ...instance,
+            target,
+          })),
+          memeVue,
+          plafond,
+        );
+      }
+
+      return classeDeVue(
+        instance,
+        permutations(instance.tray, plafond).map((tray) => ({
+          ...instance,
+          tray,
+          slots: instance.slots.map((index) =>
+            index === null
+              ? null
+              : tray.indexOf(instance.tray[index] as string),
+          ),
+        })),
+        memeVue,
+        plafond,
+      );
+    },
+
     ambiguites(role: Role, instance: LexiconInstance): LexiconInstance[] {
       if (instance.tray.length < 2) return [];
 

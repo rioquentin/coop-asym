@@ -42,13 +42,29 @@ Force un vocabulaire spatial et un repère commun.
 Levier : absence de points de repère évidents, symétries trompeuses,
 orientation non partagée entre les deux vues.
 
-### SIMULTANÉITÉ
-Les deux joueurs doivent agir dans la même fenêtre de temps. Pendant
-l'exécution, la communication est inutilisable.
-Force la planification complète avant l'action.
-Levier : longueur de la séquence à mémoriser, étroitesse de la fenêtre.
-**Jamais** de dextérité ou de temps de réaction. La contrainte est
-cognitive, pas motrice.
+### SIMULTANÉITÉ — retirée
+
+*Spécifiée, jamais tenable. Conservée ici comme trace de l'erreur, pas
+comme outil disponible.*
+
+Elle demandait que les deux joueurs agissent dans la même fenêtre de temps,
+communication inutilisable pendant l'exécution.
+
+Elle est **inimplémentable dans ce jeu**, et l'erreur est dans cette
+spécification, pas dans les tentatives de la réaliser. Deux raisons qui se
+referment l'une sur l'autre :
+
+- Le canal ne peut pas être coupé. Les joueurs sont sur Discord ; aucune
+  mécanique du jeu n'atteint leur vocal. « Pendant l'exécution, la
+  communication est inutilisable » décrit une salle qui n'existe pas.
+- Rendre la fenêtre assez étroite pour que parler coûte le tour est le seul
+  moyen de la rétablir — et cette fenêtre-là est un échec qui n'apprend
+  rien, donc une violation de C2, la seule contrainte que rien ne rachète.
+
+Un engagement aveugle sans fenêtre n'est pas de la simultanéité : les deux
+joueurs s'annoncent ce qu'ils vont presser et pressent. Appeler ça
+SIMULTANÉITÉ était un abus de vocabulaire ; la salle 4 relève en réalité
+d'ÉTAT CROISÉ. Voir D73.
 
 ### ÉTAT CROISÉ
 L'action de A modifie ce que voit B, et réciproquement. Aucun des deux
@@ -66,8 +82,8 @@ Primitive la plus coûteuse en charge mentale. À utiliser avec parcimonie.
 | 1 | LEXIQUE seul | Apprendre à nommer. Correspondance 1:1, aucune pression temporelle, 6 à 7 glyphes maximum. |
 | 2 | TOPOLOGIE seule | Apprendre à décrire l'espace. Aucun glyphe, on ne mélange pas encore. |
 | 3 | LEXIQUE + TOPOLOGIE | Réutilise **les glyphes exacts de la salle 1**. Le duo doit sentir qu'il applique au lieu de redécouvrir. Pic de plaisir attendu. |
-| 4 | SIMULTANÉITÉ sur acquis | Zéro vocabulaire neuf. Toute la difficulté est dans l'obligation de tout planifier d'avance. |
-| 5 | INVERSION | Les rôles s'échangent, ou le lexique appris change de sens. Teste si l'automatisme est devenu compréhension ou par cœur. Capstone. |
+| 4 | ÉTAT CROISÉ sur acquis | Zéro vocabulaire neuf. Aucune planche ne tient en place : il n'y a rien à mémoriser, il n'y a qu'à relire et à nommer. |
+| 5 | INVERSION | Porte le retournement. Réutilise la mécanique d'une salle précédente. Teste si l'automatisme est devenu compréhension ou par cœur. Capstone. **La nature de l'inversion est couverte par le mur** — voir CLAUDE.md section 1. |
 
 Règle de continuité : **tout élément de lexique introduit en salle 1 doit
 réapparaître au moins une fois plus tard.** Un glyphe utilisé une seule fois
@@ -99,9 +115,9 @@ informative : rate un essai et tu apprends quelque chose.
 résoudre. Test formel en section 4 de `CLAUDE.md`.
 
 **C4 — Zéro dextérité.** Aucune contrainte de précision de souris, de
-vitesse de clic ou de temps de réaction. Y compris dans SIMULTANÉITÉ, où
-la fenêtre est large (≥ 3 secondes) et où c'est la planification qui est
-difficile.
+vitesse de clic ou de temps de réaction. Aucune salle n'est chronométrée :
+c'est ce qui a fini par disqualifier SIMULTANÉITÉ, qui n'existait qu'à ce
+prix.
 
 **C5 — Zéro culture générale.** Pas de connaissance externe requise :
 langues, mythologie, dates, références. Tout ce qui est nécessaire est

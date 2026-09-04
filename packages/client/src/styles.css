@@ -445,3 +445,87 @@ input:focus {
 .passe .rate {
   color: var(--accent);
 }
+
+/*
+ * Salle 5. Une touche porte soit un mot, soit une forme : le retournement
+ * change la monnaie de chaque poste et rien d'autre.
+ */
+.sens-touche {
+  display: block;
+  padding: 0.35rem 0;
+}
+
+.touche .trace {
+  width: 2rem;
+  height: 2rem;
+}
+
+.suite li .trace {
+  display: inline-block;
+  width: 1.6rem;
+  height: 1.6rem;
+  vertical-align: middle;
+}
+
+/*
+ * Le chat. Les joueurs sont sur Discord : il sert a ce qui se transcrit mal a
+ * l'oral, pas a remplacer la voix. Il reste donc en dessous du poste, discret.
+ */
+.pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.chat {
+  padding: 1.25rem 1.5rem;
+}
+
+.lignes {
+  max-height: 9rem;
+  overflow-y: auto;
+  margin: 0.4rem 0 0.75rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.lignes li {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+}
+
+.lignes .qui {
+  flex: 0 0 1.2rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--encre-pale);
+}
+
+.lignes .de-vous .qui {
+  color: var(--accent);
+}
+
+.lignes .quoi {
+  word-break: break-word;
+}
+
+.dire {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dire input {
+  margin-bottom: 0;
+  letter-spacing: normal;
+  text-transform: none;
+  font-family: inherit;
+}
+
+.dire button {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+}
