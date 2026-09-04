@@ -7,9 +7,8 @@ import {
   type Role,
   type View,
 } from "@coop/shared";
-import { chargerDefinition } from "../../content/loader";
 import type { PuzzleDefinition } from "../../content/types";
-import { tracerGlyphe, type CompositionGlyphe } from "../lexicon/glyphes";
+import { reprendreLeLexique } from "../lexique";
 import { cheminVers, creuser, enCoordonnees, voisin } from "../plan";
 import { melanger, rngDepuis } from "../rng";
 import type {
@@ -65,11 +64,6 @@ interface ReleveContent {
   elementsMax: number;
 }
 
-interface Lexique {
-  glyphes: Glyphe[];
-  sensDe: Map<string, string>;
-}
-
 function lireContenu(definition: PuzzleDefinition): ReleveContent {
   const brut = (definition.content ?? {}) as Partial<ReleveContent>;
   const echec = (raison: string): never => {
@@ -110,42 +104,6 @@ function lireContenu(definition: PuzzleDefinition): ReleveContent {
   }
 
   return brut as ReleveContent;
-}
-
-/**
- * Reprend le lexique d'une autre salle : memes identifiants, memes traces,
- * memes significations.
- *
- * C'est la regle de continuite de docs/puzzle-spec.md section 3. Le champ
- * `reusesLexiconFrom` de la definition la declare ; c'est ici qu'elle
- * s'applique.
- */
-function reprendreLeLexique(
-  definition: PuzzleDefinition,
-  nomDeLaSalle: string,
-): Lexique {
-  const source = chargerDefinition(nomDeLaSalle);
-  const contenu = (source.content ?? {}) as {
-    glyphs?: string[];
-    legend?: Record<string, string>;
-    traces?: Record<string, CompositionGlyphe>;
-  };
-
-  if (!Array.isArray(contenu.glyphs) || !contenu.legend) {
-    throw new Error(
-      `Definition "${definition.id}" : la salle "${nomDeLaSalle}" ne porte pas de lexique.`,
-    );
-  }
-
-  const glyphes = contenu.glyphs.map((id) => {
-    const composition = contenu.traces?.[id];
-    return composition ? { id, d: tracerGlyphe(composition) } : { id };
-  });
-
-  return {
-    glyphes,
-    sensDe: new Map(contenu.glyphs.map((id) => [id, contenu.legend?.[id] ?? id])),
-  };
 }
 
 function refus(hint: string): Feedback {

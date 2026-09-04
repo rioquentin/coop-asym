@@ -49,6 +49,29 @@ const CLES_DE_VUE: Record<string, Record<Role, string[]>> = {
     A: ["attendus", "hauteur", "kind", "largeur", "marques", "murs", "progres"],
     B: ["grave", "kind", "ouvertures", "progres"],
   },
+  "src/puzzles/litanie/index.ts": {
+    A: [
+      "clavier",
+      "dernierTour",
+      "engage",
+      "kind",
+      "partenairePret",
+      "progres",
+      "suite",
+      "total",
+      "votreEngagement",
+    ],
+    B: [
+      "clavier",
+      "dernierTour",
+      "engage",
+      "kind",
+      "partenairePret",
+      "progres",
+      "total",
+      "votreEngagement",
+    ],
+  },
 };
 
 function echec(assertion: string, seed: string): never {
@@ -210,6 +233,8 @@ describe("chaine des salles", () => {
     expect(definitions[0]?.primitives).toEqual(["LEXIQUE"]);
     expect(definitions[1]?.primitives).toEqual(["TOPOLOGIE"]);
     expect(definitions[2]?.primitives).toEqual(["LEXIQUE", "TOPOLOGIE"]);
+    // Salle 4 : SIMULTANEITE sur acquis, zero vocabulaire neuf.
+    expect(definitions[3]?.primitives).toEqual(["SIMULTANEITE"]);
   });
 
   it("respecte la regle de continuite du lexique", () => {

@@ -10,6 +10,8 @@ import {
   type GridView,
   type LegendView,
   type ArpentView,
+  type ClavierView,
+  type LitanieView,
   type PlanView,
   type PosteView,
   type ReleveView,
@@ -63,6 +65,12 @@ function Session({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
         return <Releve view={game.view} {...commun} onLeave={game.leaveRoom} />;
       case "arpent":
         return <Arpent view={game.view} {...commun} onLeave={game.leaveRoom} />;
+      case "litanie":
+        return <Litanie view={game.view} {...commun} onLeave={game.leaveRoom} />;
+      case "clavier":
+        return (
+          <ClavierDesFormes view={game.view} {...commun} onLeave={game.leaveRoom} />
+        );
     }
   }
   return <Lobby snapshot={snapshot} onLeave={game.leaveRoom} />;
@@ -681,6 +689,164 @@ function Aveugle({
         {view.surLeJalon && <li className="juste">Un jalon sous vos pieds.</li>}
       </ul>
 
+      <FeedbackLine feedback={feedback} />
+      <button type="button" onClick={onLeave}>
+        Quitter
+      </button>
+    </main>
+  );
+}
+
+/** Etat du tour engage, commun aux deux postes de la salle 4. */
+function Passe({
+  engage,
+  progres,
+  total,
+  partenairePret,
+  votreEngagement,
+  dernierTour,
+}: {
+  engage: boolean;
+  progres: number;
+  total: number;
+  partenairePret: boolean;
+  votreEngagement: number | null;
+  dernierTour: "reussi" | "manque" | null;
+}) {
+  return (
+    <ul className="passe">
+      <li>
+        {progres}/{total} signes consignes.
+      </li>
+      <li className={engage ? "juste" : undefined}>
+        {engage ? "Le mecanisme tourne." : "Le mecanisme est au repos."}
+      </li>
+      {engage && (
+        <>
+          <li>
+            {votreEngagement === null
+              ? "Vous n'avez rien engage sur ce tour."
+              : "Vous vous etes engage. En attente."}
+          </li>
+          <li className={partenairePret ? "juste" : undefined}>
+            {partenairePret
+              ? "L'autre poste s'est engage."
+              : "L'autre poste n'a rien engage."}
+          </li>
+        </>
+      )}
+      {dernierTour === "manque" && (
+        <li className="rate">Le dernier tour n'a pas mordu.</li>
+      )}
+    </ul>
+  );
+}
+
+/**
+ * Poste de A en salle 4 : la suite a emettre, et un clavier de significations.
+ *
+ * La suite disparait des que le mecanisme est arme. Ce qui n'a pas ete
+ * memorise avant est perdu jusqu'au relachement — et relacher ne coute rien.
+ */
+function Litanie({
+  view,
+  feedback,
+  salle,
+  onAct,
+  onLeave,
+}: PosteProps & { view: LitanieView }) {
+  return (
+    <main className="sheet">
+      <Ambiance salle={salle} />
+      <h1>Litanie</h1>
+      <p className="muted">
+        Dictez la suite avant d'armer. Une fois le mecanisme lance, elle
+        disparait — et vous vous engagez sans voir ce que l'autre engage.
+      </p>
+
+      <p className="label">Suite a emettre</p>
+      {view.suite ? (
+        <ol className="suite">
+          {view.suite.map((sens, rang) => (
+            <li key={rang} className={rang < view.progres ? "juste" : undefined}>
+              {sens}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="muted suite-masquee">
+          Masquee tant que le mecanisme tourne.
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={() => onAct({ type: view.engage ? "relacher" : "engager" })}
+      >
+        {view.engage ? "Relacher" : "Armer le mecanisme"}
+      </button>
+
+      <p className="label">Vos touches</p>
+      <div className="rangee">
+        {view.clavier.map((sens, index) => (
+          <button
+            key={sens}
+            type="button"
+            className={`touche${view.votreEngagement === index ? " choisi" : ""}`}
+            disabled={!view.engage || view.votreEngagement !== null}
+            onClick={() => onAct({ type: "presser", index })}
+          >
+            {sens}
+          </button>
+        ))}
+      </div>
+
+      <Passe {...view} />
+      <FeedbackLine feedback={feedback} />
+      <button type="button" onClick={onLeave}>
+        Quitter
+      </button>
+    </main>
+  );
+}
+
+/**
+ * Poste de B en salle 4 : un clavier de formes, et rien d'autre.
+ *
+ * B ne voit jamais la suite. Il n'a que ce que A lui a dit avant l'armement,
+ * et la correspondance apprise en salle 1.
+ */
+function ClavierDesFormes({
+  view,
+  feedback,
+  salle,
+  onAct,
+  onLeave,
+}: PosteProps & { view: ClavierView }) {
+  return (
+    <main className="sheet">
+      <Ambiance salle={salle} />
+      <h1>Clavier</h1>
+      <p className="muted">
+        Vous ne voyez pas la suite. Engagez la forme convenue, sans voir ce que
+        l'autre engage.
+      </p>
+
+      <div className="rangee">
+        {view.clavier.map((glyphe, index) => (
+          <button
+            key={glyphe.id}
+            type="button"
+            className={`glyphe${view.votreEngagement === index ? " choisi" : ""}`}
+            disabled={!view.engage || view.votreEngagement !== null}
+            onClick={() => onAct({ type: "presser", index })}
+          >
+            <TraceGlyphe glyphe={glyphe} />
+          </button>
+        ))}
+      </div>
+
+      <Passe {...view} />
       <FeedbackLine feedback={feedback} />
       <button type="button" onClick={onLeave}>
         Quitter

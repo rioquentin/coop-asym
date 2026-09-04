@@ -55,7 +55,7 @@ schema/     JSON Schema d'une définition d'énigme
 
 ## État
 
-Jalons 1 à 3 faits, salle 1 mécaniquement écrite :
+Jalons 1 à 3 faits, salles 1 à 4 écrites et chaînées :
 
 - **Jalon 1** — lobby, code de room à 4 lettres, 2/2 connectés, attribution des
   rôles, reconnexion, balayage des rooms mortes.
@@ -70,6 +70,9 @@ Jalons 1 à 3 faits, salle 1 mécaniquement écrite :
 - **Salle 3** — LEXIQUE + TOPOLOGIE. Des glyphes gravés au sol : l'un sait où
   et dans quel ordre, l'autre voit les formes. Le lexique de la salle 1 est le
   seul pont, et il n'est sur aucun des deux écrans.
+- **Salle 4** — SIMULTANÉITÉ, zéro vocabulaire neuf. Un mécanisme réclame une
+  suite de signes ; chacun s'engage sans voir ce que l'autre engage, et la
+  suite disparaît dès que le mécanisme est armé.
 - **Trame** — les cinq salles et le retournement de la salle 5, chiffrés dans
   `content/prod/trame.enc`. Écrits par un canal séparé, contrôlés par
   programme, jamais relus — voir D35 à D37 dans `DECISIONS.md`.
@@ -81,6 +84,7 @@ pnpm --filter @coop/server content:cle          # génère CONTENT_KEY dans .env
 pnpm --filter @coop/server content:salle-01     # tire et chiffre la salle 1
 pnpm --filter @coop/server content:salle-02     # ecrit et chiffre la salle 2
 pnpm --filter @coop/server content:salle-03     # ecrit et chiffre la salle 3
+pnpm --filter @coop/server content:salle-04     # ecrit et chiffre la salle 4
 pnpm --filter @coop/server content:verifier room-01
 pnpm --filter @coop/server content:controler-trame
 ```

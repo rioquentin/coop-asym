@@ -188,6 +188,79 @@ export type ReleveAction =
   | { type: "relever" }
   | { type: "sceller" };
 
+// ---------------------------------------------------------------------------
+// Primitive SIMULTANEITE
+// ---------------------------------------------------------------------------
+
+/** Resultat du dernier tour engage. */
+export type Tour = "reussi" | "manque";
+
+/**
+ * Ce que les deux postes partagent pendant une passe : l'avancement, et le
+ * fait que l'autre a engage — jamais CE qu'il a engage.
+ */
+interface EtatDePasse {
+  /** Le mecanisme tourne : les references sont masquees. */
+  engage: boolean;
+  /** Tours reussis. Ne redescend jamais (C2). */
+  progres: number;
+  /** Nombre de tours en tout. */
+  total: number;
+  /**
+   * L'autre a engage son tour. Jamais son choix : c'est ce qui rend
+   * l'engagement simultane plutot que successif.
+   */
+  partenairePret: boolean;
+  /** Votre propre engagement du tour, ou null. */
+  votreEngagement: number | null;
+  dernierTour: Tour | null;
+}
+
+/**
+ * Vue de A : les significations, et la suite a emettre.
+ *
+ * `suite` disparait des que le mecanisme est engage : ce qui n'a pas ete
+ * memorise est perdu jusqu'a ce qu'on relache. C'est toute la salle.
+ */
+export interface LitanieView extends EtatDePasse {
+  kind: "litanie";
+  /** Les significations, dans l'ordre du clavier de A. Tire du seed. */
+  clavier: string[];
+  /** La suite a emettre, en significations. Null tant que c'est engage. */
+  suite: string[] | null;
+}
+
+/**
+ * Vue de B : les formes, et rien d'autre.
+ *
+ * B ne voit jamais la suite. Il ne connait que ce que A lui a dit avant que
+ * le mecanisme parte, et la correspondance apprise en salle 1.
+ */
+export interface ClavierView extends EtatDePasse {
+  kind: "clavier";
+  /** Les glyphes, dans l'ordre du clavier de B. Tire du seed. */
+  clavier: Glyphe[];
+}
+
+export type SimultaneiteView = LitanieView | ClavierView;
+
+/**
+ * Intentions de la simultaneite.
+ * `engager` et `relacher` sont a A ; `presser` est aux deux.
+ */
+export type SimultaneiteAction =
+  | { type: "engager" }
+  | { type: "relacher" }
+  | { type: "presser"; index: number };
+
 /** Vue et action du jeu, toutes primitives confondues. */
-export type View = LexiconView | TopologieView | ReleveComposeView;
-export type Action = LexiconAction | TopologieAction | ReleveAction;
+export type View =
+  | LexiconView
+  | TopologieView
+  | ReleveComposeView
+  | SimultaneiteView;
+export type Action =
+  | LexiconAction
+  | TopologieAction
+  | ReleveAction
+  | SimultaneiteAction;

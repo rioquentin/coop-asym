@@ -399,3 +399,49 @@ input:focus {
 .gravure-au-sol .muted {
   margin: 0;
 }
+
+/*
+ * Salle 4. La suite est de l'information a memoriser : elle est lisible sans
+ * effort tant qu'elle est la, et son absence doit se voir tout de suite.
+ */
+.suite {
+  margin: 0.4rem 0 1.25rem;
+  padding-left: 1.4rem;
+  font-size: 0.9rem;
+}
+
+.suite li {
+  padding: 0.15rem 0;
+}
+
+.suite li.juste {
+  color: var(--encre-pale);
+  text-decoration: line-through;
+}
+
+.suite-masquee {
+  margin: 0.4rem 0 1.25rem;
+  padding: 0.9rem;
+  border: 1px dashed var(--regle);
+  text-align: center;
+}
+
+.touche {
+  min-width: 7rem;
+  font-size: 0.8rem;
+}
+
+.passe {
+  margin: 1.25rem 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: var(--encre-pale);
+}
+
+.passe .juste {
+  color: var(--encre);
+}
+
+.passe .rate {
+  color: var(--accent);
+}

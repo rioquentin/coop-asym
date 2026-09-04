@@ -594,6 +594,74 @@ travaille, pas à celui qui le lance.
 
 ---
 
+## Salle 4 — SIMULTANÉITÉ
+
+### D54. La simultanéité est un **engagement aveugle**, pas une horloge
+
+C'est l'écart le plus important de cette salle, et il est délibéré.
+
+`docs/puzzle-spec.md` §2 décrit SIMULTANÉITÉ comme « les deux joueurs doivent
+agir dans la même fenêtre de temps ». La lecture littérale — un chronomètre,
+une fenêtre de N secondes — pose trois problèmes :
+
+1. **C4 l'interdit à moitié.** « Aucune contrainte de temps de réaction […] la
+   contrainte est cognitive, pas motrice. » Une fenêtre au chronomètre est
+   précisément le mécanisme qui glisse vers la réaction dès qu'on la resserre.
+2. **Une horloge dans `applyAction` casse le déterminisme**, donc la
+   génération par seed, donc les quatre obligations de vérification. Tout le
+   harnais repose sur `generate(seed)` reproductible.
+3. **On ne peut pas rendre leur communication inutilisable.** Les joueurs sont
+   sur Discord ; aucun code ne les fait taire. Prétendre le contraire serait
+   une règle que le jeu n'applique pas.
+
+La salle réalise donc la primitive autrement : **chacun s'engage sans voir ce
+que l'autre a engagé**, et le tour ne se résout que lorsque les deux se sont
+engagés. Personne ne peut réagir à l'autre — ce que la fenêtre de temps
+cherchait à obtenir — et il n'y a ni horloge, ni dextérité, ni réaction.
+
+Et « la communication est inutilisable pendant l'exécution » devient : dès que
+le mécanisme est armé, **la suite disparaît de l'écran**. Ils peuvent parler
+tant qu'ils veulent, personne n'a plus rien à lire. Ce qui n'a pas été
+mémorisé avant est perdu. C'est l'objet déclaré de la salle — « toute la
+difficulté est dans l'obligation de tout planifier d'avance ».
+
+Le résultat se mesure : **0 victoire fortuite sur 50 000 marches au hasard**,
+contre 162, 87 et 411 pour les trois salles précédentes. L'engagement aveugle
+est la seule des quatre mécaniques qui résiste complètement au hasard.
+
+### D55. Relâcher est gratuit et ne fait rien perdre
+
+Le prix d'un défaut de plan est un aller-retour, jamais une punition. `progres`
+ne redescend jamais, y compris en relâchant le mécanisme. C2 interdit « une
+séquence à rejouer depuis le début » ; un duo qui a oublié le septième signe
+relâche, relit, réarme, et reprend au septième.
+
+C'est aussi ce qui empêche la salle de devenir un mur de patience : le duo qui
+mémorise tout la traverse d'une traite, celui qui ne mémorise rien la traverse
+quand même, plus lentement.
+
+### D56. L'échec distingue deux erreurs différentes
+
+Un tour manqué dit soit « vos deux côtés ne désignent pas la même chose », soit
+« vous vous accordez, mais pas sur ce rang ». Jamais ce qui était attendu.
+
+C'est la lecture exigeante de C2 : le refus sépare *nous avons mal mémorisé la
+correspondance* de *nous avons mal mémorisé l'ordre*. Deux problèmes
+différents, deux corrections différentes — et rien de tout ça ne donne la
+réponse.
+
+### D57. Les deux claviers sont mélangés séparément
+
+C'est ce qui rend la salle asymétrique. Une intention désigne une **position**
+sur son propre clavier ; aucun des deux ne connaît l'ordre de l'autre.
+
+Sans ça, A verrait la suite en significations et connaîtrait par là même les
+touches de B — sa vue déterminerait la solution entière et l'obligation
+d'asymétrie tomberait. Le témoin d'ambiguïté pour A est exactement ce
+décalage : même vue, clavier de B décalé, solution différente.
+
+---
+
 ## Environnement
 
 - **pnpm** n'était pas installé et `corepack enable` demande l'élévation sous

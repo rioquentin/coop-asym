@@ -1,0 +1,38 @@
+{
+  "id": "dev-litanie-triviale",
+  "room": 4,
+  "primitives": ["SIMULTANEITE"],
+  "module": "src/puzzles/litanie/index.ts",
+  "reusesLexiconFrom": ["dev-lexique-trivial"],
+  "roles": {
+    "A": {
+      "component": "LitaniePanel",
+      "canAct": true,
+      "sees": ["suite", "clavierA"]
+    },
+    "B": {
+      "component": "ClavierPanel",
+      "canAct": true,
+      "sees": ["clavierB"]
+    }
+  },
+  "budget": {
+    "maxDiscreteElements": 4,
+    "targetExchanges": 7,
+    "targetMinutes": [2, 3]
+  },
+  "failure": {
+    "costSeconds": 0.5,
+    "resetsPuzzle": false,
+    "feedback": "informative"
+  },
+  "dressing": {
+    "roomLabel": "FIXTURE DEV",
+    "ambientText": "Contenu de developpement. Aucune valeur narrative."
+  },
+  "content": {
+    "_note": "FIXTURE. Suite minuscule, lexique de la fixture de la salle 1.",
+    "lexiqueDe": "room-01",
+    "longueur": 4
+  }
+}

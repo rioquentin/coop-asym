@@ -11,6 +11,8 @@ import {
   type GridView,
   type LegendView,
   type ArpentView,
+  type ClavierView,
+  type LitanieView,
   type PosteView,
   type ReleveView,
   type ServerMessage,
@@ -277,6 +279,48 @@ async function resoudreLeReleve(
   a.agir({ type: "sceller" });
 }
 
+/**
+ * Fait resoudre la salle 4. Le test ne dispose que des deux vues et de la
+ * correspondance rapportee de la salle 1 — comme le duo.
+ *
+ * A lit la suite AVANT d'armer le mecanisme, puis elle disparait de sa vue.
+ * Ensuite chacun s'engage a l'aveugle, sans voir ce que l'autre a engage.
+ */
+async function resoudreLaLitanie(
+  a: Poste,
+  b: Poste,
+  sensDe: Map<string, string>,
+): Promise<void> {
+  const glypheDuSens = new Map(
+    [...sensDe.entries()].map(([glyphe, sens]) => [sens, glyphe]),
+  );
+
+  const vueA = a.vue() as LitanieView;
+  // Ce que le duo se dit pendant la preparation : la suite, en significations.
+  const suite = vueA.suite;
+  if (!suite) throw new Error("la suite devrait etre lisible avant l'engagement");
+
+  const avantEngagement = a.nbVues();
+  a.agir({ type: "engager" });
+  await until(() => a.nbVues() > avantEngagement);
+  expect((a.vue() as LitanieView).suite).toBeNull();
+
+  for (const sens of suite) {
+    const attendu = (a.vue() as LitanieView).progres + 1;
+    const clavierA = (a.vue() as LitanieView).clavier;
+    const clavierB = (b.vue() as ClavierView).clavier;
+
+    const glyphe = glypheDuSens.get(sens) as string;
+    a.agir({ type: "presser", index: clavierA.indexOf(sens) });
+    b.agir({
+      type: "presser",
+      index: clavierB.findIndex((forme) => forme.id === glyphe),
+    });
+
+    await until(() => (a.vue() as LitanieView).progres >= attendu);
+  }
+}
+
 beforeAll(async () => {
   server = await demarrerServeur(PORT);
 });
@@ -465,8 +509,73 @@ describe("boucle reseau", () => {
 
     // Salle 3 : les deux a la fois, et le lexique de la salle 1 est le pont.
     await resoudreLeReleve(a, b, sensDe);
+    await until(
+      () => a.vue()?.kind === "litanie" && b.vue()?.kind === "clavier",
+    );
+    await until(() => a.room.state.room === 4);
+
+    // Salle 4 : rien de neuf, tout de memoire, et chacun s'engage en aveugle.
+    await resoudreLaLitanie(a, b, sensDe);
     await until(() => a.aRecuFin() && b.aRecuFin());
     await until(() => a.room.state.phase === "FINISHED");
+  }, 90_000);
+
+  it("masque la suite des que le mecanisme est arme", async () => {
+    const { a, b } = await ouvrirPartie();
+
+    const sensDe = await resoudreLeLexique(a, b);
+    await until(() => b.vue()?.kind === "poste");
+    await resoudreLaTopologie(a, b);
+    await until(() => b.vue()?.kind === "arpent");
+    await resoudreLeReleve(a, b, sensDe);
+    await until(() => a.vue()?.kind === "litanie");
+
+    // Avant : la suite est lisible. C'est la phase ou l'on planifie.
+    expect((a.vue() as LitanieView).suite).not.toBeNull();
+
+    const avant = a.nbVues();
+    a.agir({ type: "engager" });
+    await until(() => a.nbVues() > avant);
+
+    // Apres : ce qui n'a pas ete memorise est perdu jusqu'au relachement.
+    expect((a.vue() as LitanieView).suite).toBeNull();
+
+    // Relacher ne fait rien perdre et rend la suite. Le prix d'un defaut de
+    // plan est un aller-retour, pas une punition (C2).
+    const avantRelache = a.nbVues();
+    a.agir({ type: "relacher" });
+    await until(() => a.nbVues() > avantRelache);
+    expect((a.vue() as LitanieView).suite).not.toBeNull();
+
+    // Et B n'a jamais rien vu de la suite.
+    expect(JSON.stringify(b.vue())).not.toContain("suite");
+  }, 60_000);
+
+  it("ne dit jamais a l'un ce que l'autre a engage", async () => {
+    const { a, b } = await ouvrirPartie();
+
+    const sensDe = await resoudreLeLexique(a, b);
+    await until(() => b.vue()?.kind === "poste");
+    await resoudreLaTopologie(a, b);
+    await until(() => b.vue()?.kind === "arpent");
+    await resoudreLeReleve(a, b, sensDe);
+    await until(() => a.vue()?.kind === "litanie");
+
+    const avant = a.nbVues();
+    a.agir({ type: "engager" });
+    await until(() => a.nbVues() > avant);
+
+    // A s'engage seul : B apprend qu'il s'est engage, jamais sur quoi.
+    const avantB = b.nbVues();
+    a.agir({ type: "presser", index: 0 });
+    await until(() => b.nbVues() > avantB);
+
+    const vueB = b.vue() as ClavierView;
+    expect(vueB.partenairePret).toBe(true);
+    expect(vueB.votreEngagement).toBeNull();
+    await respirer();
+    // Rien dans ce que B a recu ne porte le choix de A.
+    expect(JSON.stringify(b.vue())).not.toContain("engagementA");
   }, 60_000);
 
   it("rend a un revenant la vue qu'il avait laissee", async () => {
