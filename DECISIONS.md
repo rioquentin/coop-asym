@@ -503,6 +503,97 @@ ce champ ne donne pas à un rôle ce qui appartient à l'autre.
 
 ---
 
+## Salle 3 — LEXIQUE + TOPOLOGIE
+
+### D47. La salle 3 reprend les glyphes de la salle 1 **et leur sens**
+
+C'était la question ouverte. Tranchée seul, sans lire la trame.
+
+`docs/puzzle-spec.md` §3 dit que la salle 3 « réutilise les glyphes exacts de
+la salle 1 » et que « le duo doit sentir qu'il applique au lieu de
+redécouvrir ». Rendre un sens neuf aux mêmes formes, c'est très exactement
+redécouvrir — la continuité serait visuelle et vide.
+
+Le second argument est structurel : si le retournement de la salle 5 porte sur
+le lexique, il lui faut un lexique **stable** à retourner. Le déplacer dès la
+salle 3 dépenserait le tour à mi-chemin et rendrait le climax arbitraire, ce
+que la règle d'inversion interdit explicitement.
+
+Les deux lectures mènent au même endroit, donc je n'ai pas eu besoin de savoir
+laquelle des deux inversions a été retenue.
+
+### D48. Le pont n'est sur aucun des deux écrans
+
+A voit **où** l'on a gravé et l'ordre des significations attendues. B voit la
+**forme** sous ses pieds. Ni l'un ni l'autre n'a la correspondance : elle est
+dans leur tête depuis la salle 1.
+
+C'est ce qui fait de cette salle autre chose qu'une salle 2 décorée. Et ce
+n'est jamais un cul-de-sac : un duo qui a oublié peut retomber sur ses pieds
+en essayant, au prix de quelques allers-retours — le coût d'échec reste nul
+(C2), seul le temps se paie.
+
+### D49. Plus de gravures que de relevés
+
+Le contenu impose `releves < marques`. Si toutes les gravures devaient être
+relevées, l'ordre suffirait et le lexique ne servirait à rien : B irait de
+gravure en gravure. Les gravures inutiles sont ce qui oblige à **identifier**
+une forme plutôt qu'à les visiter toutes.
+
+### D50. Les champs décisifs sont trouvés par perturbation
+
+Raffinement de D43, imposé par la salle 3. Le critère « les champs que
+`solve()` modifie » y produisait encore des faux positifs : la solution
+déplace B, mais une fois le relevé complet, A peut sceller même si B a bougé
+— la position n'est donc pas décisive.
+
+Un champ est maintenant réputé décisif si, en le remettant à sa valeur de
+départ dans l'état gagnant, la victoire tombe. C'est déterminé par l'exécution,
+pas par une heuristique.
+
+Limite résiduelle : deux champs qui ne comptent qu'ensemble échapperaient au
+test. Le cas est théorique, il est noté pour ne pas surprendre.
+
+### D51. Un témoin d'ambiguïté doit être lui-même résoluble
+
+Le harnais exige désormais qu'un témoin rendu par `ambiguites()` atteigne la
+victoire via son propre `solve()`. Sans ça, un module pourrait rendre
+n'importe quel objet ayant la bonne vue et passer l'obligation la plus
+importante du projet. Un témoin qui ne tient pas debout ne prouve rien.
+
+### D52. L'angle par échantillon ne s'applique que s'il mord
+
+Le deuxième angle du test d'asymétrie — regrouper 500 instances par vue et
+chercher une vue que plusieurs solutions produisent — ne dit plus rien dès que
+l'espace des instances est grand : aucune collision ne se produit. C'est la
+limite annoncée en D20, et la salle 3 l'a atteinte.
+
+Le contrôle ne s'exécute donc que si des collisions existent. C'est
+exactement pour ce cas que le témoin fabriqué existe, et pourquoi il est la
+preuve principale plutôt qu'un filet de sécurité.
+
+### D53. Un outil qui touche `content/prod` déclare son mode lui-même
+
+`content:salle-03` écrit du contenu de production mais résolvait le lexique
+dans le mode courant — donc la fixture, en développement. La salle écrite
+n'aurait correspondu à rien.
+
+`content:habiller` avait le même défaut, remonté par l'auteur de l'habillage :
+il a dû exporter `NODE_ENV=production` à la main pour que la salle 3 charge.
+Un outil qui ne travaille que sur du contenu chiffré ne doit pas dépendre de
+ce que l'opérateur pense à exporter — c'est une panne silencieuse en
+puissance, et sur un contenu que personne ne relit, silencieuse veut dire
+définitive.
+
+Les deux forcent maintenant `NODE_ENV=production` et vident le cache du loader
+avant de construire quoi que ce soit.
+
+Le fait que le même nom logique résolve la fixture en dev et le contenu réel
+en prod reste voulu (D32) ; c'est à l'outil de dire dans quel monde il
+travaille, pas à celui qui le lance.
+
+---
+
 ## Environnement
 
 - **pnpm** n'était pas installé et `corepack enable` demande l'élévation sous

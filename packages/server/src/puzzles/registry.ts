@@ -1,5 +1,6 @@
 import type { PuzzleDefinition } from "../content/types";
 import { creerModuleLexique } from "./lexicon";
+import { creerModuleReleve } from "./releve";
 import { creerModuleTopologie } from "./topologie";
 import type { PuzzleModule } from "./types";
 
@@ -24,6 +25,7 @@ type Fabrique = (definition: PuzzleDefinition) => OpaquePuzzleModule;
 const REGISTRE: Record<string, Fabrique> = {
   "src/puzzles/lexicon/index.ts": creerModuleLexique,
   "src/puzzles/topologie/index.ts": creerModuleTopologie,
+  "src/puzzles/releve/index.ts": creerModuleReleve,
 };
 
 /** Les chemins de module acceptes. Sert aux messages d'erreur et aux tests. */

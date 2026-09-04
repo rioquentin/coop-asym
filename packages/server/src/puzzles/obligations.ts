@@ -134,18 +134,22 @@ export function verifierObligations(
     // On verifie la propriete que l'enonce protege, et qui est plus forte :
     // il n'existe aucun etat gagnant en dehors du bon. Voir D22.
     //
-    // « Le bon » se mesure sur les seuls champs que la solution modifie. Une
-    // instance peut porter de l'etat incident — un jalon pose en chemin, par
-    // exemple — qui ne conditionne pas la victoire ; l'exiger identique
-    // reviendrait a refuser des parties gagnantes parfaitement legitimes.
+    // « Le bon » se mesure sur les seuls champs DECISIFS, et on les trouve
+    // par perturbation : un champ est decisif si le remettre a sa valeur de
+    // depart casse la victoire. Tout le reste est incident — un jalon pose en
+    // chemin, la case ou l'on se trouve une fois le releve complet — et
+    // l'exiger identique reviendrait a refuser des parties gagnantes
+    // parfaitement legitimes. Voir D43 et D47.
     const canonique = appliquer(enigme, depart, enigme.solve(depart));
     const clesQuiComptent = Object.keys(
       canonique as Record<string, unknown>,
-    ).filter(
-      (cle) =>
-        stable((canonique as Record<string, unknown>)[cle]) !==
-        stable((depart as Record<string, unknown>)[cle]),
-    );
+    ).filter((cle) => {
+      const avant = (depart as Record<string, unknown>)[cle];
+      const apres = (canonique as Record<string, unknown>)[cle];
+      if (stable(avant) === stable(apres)) return false;
+      const perturbee = { ...(canonique as Record<string, unknown>), [cle]: avant };
+      return !enigme.isSolved(perturbee);
+    });
 
     if (clesQuiComptent.length === 0) {
       // Une solution qui ne change rien ne prouve rien.
@@ -193,7 +197,14 @@ export function verifierObligations(
       const temoins = enigme
         .ambiguites(role, depart)
         .filter((voisin: unknown) => stable(enigme.viewFor(role, voisin)) === vue)
-        .filter((voisin: unknown) => stable(enigme.solve(voisin)) !== solution);
+        .filter((voisin: unknown) => stable(enigme.solve(voisin)) !== solution)
+        // Un temoin fabrique ne prouve rien s'il ne tient pas debout. On exige
+        // qu'il soit lui-meme resoluble : sinon un module pourrait rendre
+        // n'importe quel objet et passer l'obligation la plus importante du
+        // projet. Voir D48.
+        .filter((voisin: unknown) =>
+          enigme.isSolved(appliquer(enigme, voisin, enigme.solve(voisin))),
+        );
 
       if (temoins.length === 0) {
         note(`asymetrie/${role}`, seed);

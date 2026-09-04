@@ -10,7 +10,9 @@ import {
   type Direction,
   type GridView,
   type LegendView,
+  type ArpentView,
   type PosteView,
+  type ReleveView,
   type ServerMessage,
 } from "@coop/shared";
 import { CHAINE_DES_SALLES } from "../content/chaine";
@@ -138,37 +140,46 @@ function planDuDuo(vueA: GridView, vueB: LegendView): Action[] {
 /**
  * Fait resoudre la salle 1 par le duo, en ne croisant que les deux vues.
  */
-async function resoudreLeLexique(a: Poste, b: Poste): Promise<void> {
-  const plan = planDuDuo(a.vue() as GridView, b.vue() as LegendView);
+async function resoudreLeLexique(
+  a: Poste,
+  b: Poste,
+): Promise<Map<string, string>> {
+  const vueB = b.vue() as LegendView;
+  const plan = planDuDuo(a.vue() as GridView, vueB);
   for (const action of plan) {
     a.agir(action);
     await until(() => a.dernierFeedback()?.kind === "accepted");
   }
   b.agir({ type: "validate" });
+
+  // Ce que le duo emporte de la salle 1 : la correspondance forme -> sens.
+  // C'est tout ce dont il dispose pour la salle 3, exactement comme un joueur.
+  return new Map(vueB.legend.map(([glyphe, sens]) => [glyphe.id, sens]));
 }
 
-/**
- * Fait resoudre la salle 2. B marche a l'aveugle — le test n'a pas plus
- * d'information que lui — et A scelle quand B annonce etre arrive.
- *
- * B explore en profondeur en tenant sa position a l'estime : il ne sait pas
- * ou il est sur le plan, mais il sait d'ou il vient. C'est exactement ce
- * qu'un joueur fait, et ca couvre un plan connexe en un nombre de pas borne.
- */
-async function resoudreLaTopologie(a: Poste, b: Poste): Promise<void> {
-  const INVERSE: Record<Direction, Direction> = {
-    nord: "sud",
-    sud: "nord",
-    est: "ouest",
-    ouest: "est",
-  };
-  const DELTA: Record<Direction, [number, number]> = {
-    nord: [0, -1],
-    est: [1, 0],
-    sud: [0, 1],
-    ouest: [-1, 0],
-  };
+const INVERSE: Record<Direction, Direction> = {
+  nord: "sud",
+  sud: "nord",
+  est: "ouest",
+  ouest: "est",
+};
+const DELTA: Record<Direction, [number, number]> = {
+  nord: [0, -1],
+  est: [1, 0],
+  sud: [0, 1],
+  ouest: [-1, 0],
+};
 
+/**
+ * Parcourt tout le lieu en profondeur, position tenue a l'estime, et laisse
+ * `surPlace` agir a chaque case atteinte. B ne sait pas ou il est ; il sait
+ * seulement d'ou il vient.
+ */
+async function parcourir(
+  b: Poste,
+  ouvertures: () => Direction[],
+  surPlace: () => Promise<boolean>,
+): Promise<void> {
   let x = 0;
   let y = 0;
   const visitees = new Set<string>();
@@ -182,15 +193,11 @@ async function resoudreLaTopologie(a: Poste, b: Poste): Promise<void> {
     y += DELTA[direction][1];
   };
 
-  for (let pas = 0; pas < 200; pas++) {
-    const vue = b.vue() as PosteView;
-    if (vue.surLeDepot) {
-      a.agir({ type: "sceller" });
-      return;
-    }
+  for (let pas = 0; pas < 300; pas++) {
+    if (await surPlace()) return;
     visitees.add(`${x},${y}`);
 
-    const inexploree = vue.ouvertures.find((direction) => {
+    const inexploree = ouvertures().find((direction) => {
       const [dx, dy] = DELTA[direction];
       return !visitees.has(`${x + dx},${y + dy}`);
     });
@@ -202,10 +209,72 @@ async function resoudreLaTopologie(a: Poste, b: Poste): Promise<void> {
     }
 
     const retour = parcours.pop();
-    if (!retour) throw new Error("plan explore sans trouver le depot");
+    if (!retour) return;
     await avancer(INVERSE[retour]);
   }
-  throw new Error("la salle 2 n'a pas ete atteinte en 200 pas");
+}
+
+/**
+ * Fait resoudre la salle 2. B marche a l'aveugle — le test n'a pas plus
+ * d'information que lui — et A scelle quand B annonce etre arrive.
+ *
+ * B explore en profondeur en tenant sa position a l'estime : il ne sait pas
+ * ou il est sur le plan, mais il sait d'ou il vient. C'est exactement ce
+ * qu'un joueur fait, et ca couvre un plan connexe en un nombre de pas borne.
+ */
+async function resoudreLaTopologie(a: Poste, b: Poste): Promise<void> {
+  let arrive = false;
+  await parcourir(
+    b,
+    () => (b.vue() as PosteView).ouvertures,
+    async () => {
+      if (!(b.vue() as PosteView).surLeDepot) return false;
+      a.agir({ type: "sceller" });
+      arrive = true;
+      return true;
+    },
+  );
+  if (!arrive) throw new Error("le depot n'a pas ete atteint");
+}
+
+/**
+ * Fait resoudre la salle 3. Le test ne dispose que des deux vues et de la
+ * correspondance rapportee de la salle 1 — comme le duo.
+ *
+ * A lit l'ordre des significations attendues ; B voit les formes gravees.
+ * Le pont entre les deux n'est sur aucun des deux ecrans.
+ */
+async function resoudreLeReleve(
+  a: Poste,
+  b: Poste,
+  sensDe: Map<string, string>,
+): Promise<void> {
+  const attendus = (a.vue() as ReleveView).attendus;
+
+  const complet = (): boolean =>
+    ((b.vue() as ArpentView).progres ?? 0) >= attendus.length;
+
+  // Une passe par releve suffit : le lieu est parcouru en entier a chaque fois.
+  for (let passe = 0; passe <= attendus.length && !complet(); passe++) {
+    await parcourir(
+      b,
+      () => (b.vue() as ArpentView).ouvertures,
+      async () => {
+        if (complet()) return true;
+        const vue = b.vue() as ArpentView;
+        const attendu = attendus[vue.progres];
+        if (!vue.grave || sensDe.get(vue.grave.id) !== attendu) return false;
+
+        const avant = b.nbVues();
+        b.agir({ type: "relever" });
+        await until(() => b.nbVues() > avant || b.dernierFeedback() !== undefined);
+        return complet();
+      },
+    );
+  }
+
+  if (!complet()) throw new Error("le releve n'a pas ete complete");
+  a.agir({ type: "sceller" });
 }
 
 beforeAll(async () => {
@@ -349,16 +418,56 @@ describe("boucle reseau", () => {
     expect(a.aRecuFin()).toBe(false);
   });
 
-  it("termine la partie quand la derniere salle tombe", async () => {
+  it("ne montre a B ni le plan ni l'ordre en salle 3", async () => {
     const { a, b } = await ouvrirPartie();
 
-    await resoudreLeLexique(a, b);
+    const sensDe = await resoudreLeLexique(a, b);
+    await until(() => b.vue()?.kind === "poste");
+    await resoudreLaTopologie(a, b);
+    await until(() => b.vue()?.kind === "arpent");
+
+    // B a legitimement vu les significations EN SALLE 1 — c'est meme tout
+    // l'objet de la continuite. Ce qu'on verifie ici, c'est qu'elles ne lui
+    // sont pas resservies en salle 3.
+    const depuisLaSalle3 = b.journal.length;
+    const vueB = b.vue() as ArpentView;
+    expect(Object.keys(vueB).sort()).toEqual([
+      "grave",
+      "kind",
+      "ouvertures",
+      "progres",
+    ]);
+
+    // Les significations attendues sont chez A, et nulle part chez B.
+    await respirer();
+    const recuParB = JSON.stringify(b.journal.slice(depuisLaSalle3 - 1));
+    for (const attendu of (a.vue() as ReleveView).attendus) {
+      expect(recuParB.includes(`"${attendu}"`)).toBe(false);
+    }
+    // Et le sens des formes n'est sur aucun des deux ecrans.
+    expect(JSON.stringify(a.journal)).not.toContain("grave");
+    expect(sensDe.size).toBeGreaterThan(0);
+  });
+
+  it("traverse la chaine entiere avec les seules deux vues", async () => {
+    const { a, b } = await ouvrirPartie();
+
+    // Salle 1 : le duo repart avec sa correspondance forme -> sens.
+    const sensDe = await resoudreLeLexique(a, b);
     await until(() => a.vue()?.kind === "plan" && b.vue()?.kind === "poste");
 
+    // Salle 2 : l'espace, sans aucun glyphe.
     await resoudreLaTopologie(a, b);
+    await until(() => a.vue()?.kind === "releve" && b.vue()?.kind === "arpent");
+    // L'etat synchronise et les vues ciblees sont deux canaux distincts :
+    // on attend le premier, on ne le suppose pas arrive avec le second.
+    await until(() => a.room.state.room === 3);
+
+    // Salle 3 : les deux a la fois, et le lexique de la salle 1 est le pont.
+    await resoudreLeReleve(a, b, sensDe);
     await until(() => a.aRecuFin() && b.aRecuFin());
     await until(() => a.room.state.phase === "FINISHED");
-  }, 30_000);
+  }, 60_000);
 
   it("rend a un revenant la vue qu'il avait laissee", async () => {
     const clientB = new Client(ENDPOINT);

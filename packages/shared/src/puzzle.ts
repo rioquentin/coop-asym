@@ -143,6 +143,51 @@ export type TopologieAction =
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// LEXIQUE + TOPOLOGIE
+// ---------------------------------------------------------------------------
+
+/**
+ * Vue de A : le plan, ou sont les marques, et l'ordre des releves a obtenir.
+ *
+ * A voit QUE des marques sont posees, jamais LAQUELLE porte quel glyphe. Il
+ * connait les significations attendues, dans l'ordre, et rien qui lui dise
+ * quelle marque les porte — ni ou est son partenaire.
+ */
+export interface ReleveView {
+  kind: "releve";
+  largeur: number;
+  hauteur: number;
+  murs: Direction[][];
+  /** Ou des glyphes sont graves. Sans dire lesquels. */
+  marques: { x: number; y: number }[];
+  /** Les significations a relever, dans l'ordre. */
+  attendus: string[];
+  /** Combien de releves sont deja consignes. */
+  progres: number;
+}
+
+/**
+ * Vue de B : ce qu'il a sous les pieds.
+ *
+ * B voit la FORME gravee, jamais son sens. Le sens, il l'a appris en salle 1 —
+ * c'est tout l'objet de cette salle : appliquer, pas redecouvrir.
+ */
+export interface ArpentView {
+  kind: "arpent";
+  ouvertures: Direction[];
+  /** Le glyphe grave sur la case courante, s'il y en a un. */
+  grave: Glyphe | null;
+  progres: number;
+}
+
+export type ReleveComposeView = ReleveView | ArpentView;
+
+export type ReleveAction =
+  | { type: "avancer"; direction: Direction }
+  | { type: "relever" }
+  | { type: "sceller" };
+
 /** Vue et action du jeu, toutes primitives confondues. */
-export type View = LexiconView | TopologieView;
-export type Action = LexiconAction | TopologieAction;
+export type View = LexiconView | TopologieView | ReleveComposeView;
+export type Action = LexiconAction | TopologieAction | ReleveAction;

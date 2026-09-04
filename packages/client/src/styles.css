@@ -370,3 +370,32 @@ input:focus {
 .sensations .juste {
   color: var(--accent);
 }
+
+/*
+ * Salle 3. La gravure sous les pieds est la seule information que B possede :
+ * elle est grande et pleine, sans decor autour.
+ */
+.gravure {
+  fill: none;
+  stroke: var(--encre);
+  stroke-width: 2;
+}
+
+.gravure-au-sol {
+  display: grid;
+  place-items: center;
+  min-height: 6rem;
+  margin: 0.5rem 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--regle);
+}
+
+.gravure-au-sol .trace {
+  width: 4rem;
+  height: 4rem;
+  color: var(--encre);
+}
+
+.gravure-au-sol .muted {
+  margin: 0;
+}

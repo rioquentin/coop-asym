@@ -1,0 +1,44 @@
+{
+  "id": "dev-releve-trivial",
+  "room": 3,
+  "primitives": ["LEXIQUE", "TOPOLOGIE"],
+  "module": "src/puzzles/releve/index.ts",
+  "reusesLexiconFrom": ["dev-lexique-trivial"],
+  "roles": {
+    "A": {
+      "component": "RelevePanel",
+      "canAct": true,
+      "sees": ["largeur", "hauteur", "murs", "marques", "attendus"]
+    },
+    "B": {
+      "component": "ArpentPanel",
+      "canAct": true,
+      "sees": ["ouvertures", "grave"]
+    }
+  },
+  "budget": {
+    "maxDiscreteElements": 8,
+    "targetExchanges": 9,
+    "targetMinutes": [3, 4]
+  },
+  "failure": {
+    "costSeconds": 0.5,
+    "resetsPuzzle": false,
+    "feedback": "informative"
+  },
+  "dressing": {
+    "roomLabel": "FIXTURE DEV",
+    "ambientText": "Contenu de developpement. Aucune valeur narrative."
+  },
+  "content": {
+    "_note": "FIXTURE. Lieu minuscule, lexique de la fixture de la salle 1.",
+    "lexiqueDe": "room-01",
+    "largeur": 3,
+    "hauteur": 3,
+    "boucles": 0,
+    "marques": 3,
+    "releves": 2,
+    "elementsMin": 4,
+    "elementsMax": 8
+  }
+}

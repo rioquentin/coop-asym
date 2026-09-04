@@ -9,8 +9,10 @@ import {
   type Glyphe,
   type GridView,
   type LegendView,
+  type ArpentView,
   type PlanView,
   type PosteView,
+  type ReleveView,
 } from "@coop/shared";
 import {
   useGame,
@@ -57,6 +59,10 @@ function Session({ game, snapshot }: { game: Game; snapshot: Snapshot }) {
         return <Plan view={game.view} {...commun} onLeave={game.leaveRoom} />;
       case "poste":
         return <Aveugle view={game.view} {...commun} onLeave={game.leaveRoom} />;
+      case "releve":
+        return <Releve view={game.view} {...commun} onLeave={game.leaveRoom} />;
+      case "arpent":
+        return <Arpent view={game.view} {...commun} onLeave={game.leaveRoom} />;
     }
   }
   return <Lobby snapshot={snapshot} onLeave={game.leaveRoom} />;
@@ -383,60 +389,33 @@ function Plan({
         le jalon : il le sentira sous ses pieds en y passant.
       </p>
 
-      <svg
-        className="plan"
-        viewBox={[0, 0, view.largeur * COTE, view.hauteur * COTE].join(" ")}
-      >
-        {view.murs.map((murs, index) => {
-          const x = index % view.largeur;
-          const y = Math.floor(index / view.largeur);
-          const gauche = x * COTE;
-          const haut = y * COTE;
-          const droite = gauche + COTE;
-          const bas = haut + COTE;
-          return (
-            <g key={index}>
+      <Grille
+        largeur={view.largeur}
+        hauteur={view.hauteur}
+        murs={view.murs}
+        onCase={(x, y) => onAct({ type: "jalonner", x, y })}
+        decor={(x, y) => (
+          <>
+            {view.depot.x === x && view.depot.y === y && (
               <rect
-                className="case-plan"
-                x={gauche}
-                y={haut}
-                width={COTE}
-                height={COTE}
-                onClick={() => onAct({ type: "jalonner", x, y })}
+                className="depot"
+                x={x * COTE + 13}
+                y={y * COTE + 13}
+                width={COTE - 26}
+                height={COTE - 26}
               />
-              {view.depot.x === x && view.depot.y === y && (
-                <rect
-                  className="depot"
-                  x={gauche + 13}
-                  y={haut + 13}
-                  width={COTE - 26}
-                  height={COTE - 26}
-                />
-              )}
-              {view.jalon?.x === x && view.jalon.y === y && (
-                <circle
-                  className="jalon"
-                  cx={gauche + COTE / 2}
-                  cy={haut + COTE / 2}
-                  r={4}
-                />
-              )}
-              {murs.includes("nord") && (
-                <line className="mur" x1={gauche} y1={haut} x2={droite} y2={haut} />
-              )}
-              {murs.includes("ouest") && (
-                <line className="mur" x1={gauche} y1={haut} x2={gauche} y2={bas} />
-              )}
-              {murs.includes("sud") && (
-                <line className="mur" x1={gauche} y1={bas} x2={droite} y2={bas} />
-              )}
-              {murs.includes("est") && (
-                <line className="mur" x1={droite} y1={haut} x2={droite} y2={bas} />
-              )}
-            </g>
-          );
-        })}
-      </svg>
+            )}
+            {view.jalon?.x === x && view.jalon.y === y && (
+              <circle
+                className="jalon"
+                cx={x * COTE + COTE / 2}
+                cy={y * COTE + COTE / 2}
+                r={4}
+              />
+            )}
+          </>
+        )}
+      />
 
       <button
         type="button"
@@ -462,6 +441,215 @@ const LIBELLE_DIRECTION: Record<Direction, string> = {
 };
 
 /**
+ * Le lieu vu d'en haut : les murs, et ce que l'appelant veut y poser.
+ *
+ * Partage par la salle 2 et la salle 3 — c'est le meme lieu vu par le meme
+ * role, seul change ce qu'on y marque.
+ */
+function Grille({
+  largeur,
+  hauteur,
+  murs,
+  onCase,
+  decor,
+}: {
+  largeur: number;
+  hauteur: number;
+  murs: Direction[][];
+  onCase?: (x: number, y: number) => void;
+  decor?: (x: number, y: number) => ReactNode;
+}) {
+  return (
+    <svg
+      className="plan"
+      viewBox={[0, 0, largeur * COTE, hauteur * COTE].join(" ")}
+    >
+      {murs.map((cotes, index) => {
+        const x = index % largeur;
+        const y = Math.floor(index / largeur);
+        const gauche = x * COTE;
+        const haut = y * COTE;
+        const droite = gauche + COTE;
+        const bas = haut + COTE;
+        return (
+          <g key={index}>
+            <rect
+              className={onCase ? "case-plan" : undefined}
+              x={gauche}
+              y={haut}
+              width={COTE}
+              height={COTE}
+              fill="transparent"
+              onClick={onCase ? () => onCase(x, y) : undefined}
+            />
+            {decor?.(x, y)}
+            {cotes.includes("nord") && (
+              <line className="mur" x1={gauche} y1={haut} x2={droite} y2={haut} />
+            )}
+            {cotes.includes("ouest") && (
+              <line className="mur" x1={gauche} y1={haut} x2={gauche} y2={bas} />
+            )}
+            {cotes.includes("sud") && (
+              <line className="mur" x1={gauche} y1={bas} x2={droite} y2={bas} />
+            )}
+            {cotes.includes("est") && (
+              <line className="mur" x1={droite} y1={haut} x2={droite} y2={bas} />
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/** Les quatre issues d'une case, en croix. */
+function Rose({
+  ouvertures,
+  onAvancer,
+}: {
+  ouvertures: Direction[];
+  onAvancer: (direction: Direction) => void;
+}) {
+  return (
+    <div className="rose">
+      {DIRECTIONS.map((direction) => {
+        const ouvert = ouvertures.includes(direction);
+        return (
+          <button
+            key={direction}
+            type="button"
+            className={`issue ${direction}${ouvert ? "" : " muree"}`}
+            disabled={!ouvert}
+            onClick={() => onAvancer(direction)}
+          >
+            {LIBELLE_DIRECTION[direction]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Poste de A en salle 3 : le plan, ou l'on a grave, et l'ordre du releve.
+ *
+ * A sait QUE des gravures existent et dans quel ordre les significations
+ * doivent tomber. Il ne sait pas LAQUELLE porte quoi — seul son partenaire
+ * voit les formes, et seul le lexique appris en salle 1 relie les deux.
+ */
+function Releve({
+  view,
+  feedback,
+  salle,
+  onAct,
+  onLeave,
+}: PosteProps & { view: ReleveView }) {
+  const marquee = new Set(view.marques.map(({ x, y }) => `${x},${y}`));
+
+  return (
+    <main className="sheet">
+      <Ambiance salle={salle} />
+      <h1>Registre du lieu</h1>
+      <p className="muted">
+        Vous savez ou l'on a grave, jamais quoi. Votre partenaire voit les
+        formes ; a vous de reconnaitre leur sens.
+      </p>
+
+      <Grille
+        largeur={view.largeur}
+        hauteur={view.hauteur}
+        murs={view.murs}
+        decor={(x, y) =>
+          marquee.has(`${x},${y}`) ? (
+            <circle
+              className="gravure"
+              cx={x * COTE + COTE / 2}
+              cy={y * COTE + COTE / 2}
+              r={6}
+            />
+          ) : null
+        }
+      />
+
+      <p className="label">Ordre du releve</p>
+      <ol className="releve">
+        {view.attendus.map((sens, rang) => (
+          <li key={rang} className={rang < view.progres ? "juste" : undefined}>
+            <span className="attendu">{sens}</span>
+            <span className="pose">{rang < view.progres ? "consigne" : "—"}</span>
+          </li>
+        ))}
+      </ol>
+
+      <button
+        type="button"
+        className="primary"
+        onClick={() => onAct({ type: "sceller" })}
+      >
+        Sceller le releve
+      </button>
+
+      <FeedbackLine feedback={feedback} />
+      <button type="button" onClick={onLeave}>
+        Quitter
+      </button>
+    </main>
+  );
+}
+
+/**
+ * Poste de B en salle 3 : la forme sous les pieds, et les issues.
+ *
+ * B voit la gravure, jamais son sens. Le sens, il l'a appris en salle 1.
+ */
+function Arpent({
+  view,
+  feedback,
+  salle,
+  onAct,
+  onLeave,
+}: PosteProps & { view: ArpentView }) {
+  return (
+    <main className="sheet">
+      <Ambiance salle={salle} />
+      <h1>Dalles</h1>
+      <p className="muted">
+        Vous ne voyez que cette case. Nommez ce qui y est grave.
+      </p>
+
+      <div className="gravure-au-sol">
+        {view.grave ? (
+          <TraceGlyphe glyphe={view.grave} />
+        ) : (
+          <p className="muted">La dalle est nue.</p>
+        )}
+      </div>
+
+      <button
+        type="button"
+        className="primary"
+        disabled={!view.grave}
+        onClick={() => onAct({ type: "relever" })}
+      >
+        Relever
+      </button>
+
+      <Rose
+        ouvertures={view.ouvertures}
+        onAvancer={(direction) => onAct({ type: "avancer", direction })}
+      />
+
+      <p className="phase">{view.progres} releve(s) consigne(s).</p>
+
+      <FeedbackLine feedback={feedback} />
+      <button type="button" onClick={onLeave}>
+        Quitter
+      </button>
+    </main>
+  );
+}
+
+/**
  * Poste de B en salle 2 : une case, et les cotes par lesquels on en sort.
  *
  * Ni plan, ni coordonnees. B sait quand il est arrive, jamais ou il est.
@@ -481,22 +669,10 @@ function Aveugle({
         Vous ne voyez que cette case. Decrivez ce que vous avez autour de vous.
       </p>
 
-      <div className="rose">
-        {DIRECTIONS.map((direction) => {
-          const ouvert = view.ouvertures.includes(direction);
-          return (
-            <button
-              key={direction}
-              type="button"
-              className={`issue ${direction}${ouvert ? "" : " muree"}`}
-              disabled={!ouvert}
-              onClick={() => onAct({ type: "avancer", direction })}
-            >
-              {LIBELLE_DIRECTION[direction]}
-            </button>
-          );
-        })}
-      </div>
+      <Rose
+        ouvertures={view.ouvertures}
+        onAvancer={(direction) => onAct({ type: "avancer", direction })}
+      />
 
       <ul className="sensations">
         <li className={view.surLeDepot ? "juste" : undefined}>

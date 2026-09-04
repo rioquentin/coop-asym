@@ -15,7 +15,8 @@
     "content:chiffrer": "tsx src/outils/chiffrer.ts",
     "content:habiller": "tsx src/outils/habiller.ts",
     "content:controler-trame": "tsx src/outils/controler-trame.ts",
-    "content:salle-02": "tsx src/outils/generer-salle-02.ts"
+    "content:salle-02": "tsx src/outils/generer-salle-02.ts",
+    "content:salle-03": "tsx src/outils/generer-salle-03.ts"
   },
   "dependencies": {
     "@colyseus/core": "^0.18.10",

@@ -7,7 +7,14 @@ import {
   type View,
 } from "@coop/shared";
 import type { PuzzleDefinition } from "../../content/types";
-import { rngDepuis, type Rng } from "../rng";
+import {
+  cheminVers,
+  creuser,
+  distancesDepuis,
+  enCoordonnees,
+  voisin,
+} from "../plan";
+import { rngDepuis } from "../rng";
 import type {
   ActionOutcome,
   Feedback,
@@ -28,21 +35,6 @@ import type {
  * Salle 2 de l'echelle : « apprendre a decrire l'espace. Aucun glyphe, on ne
  * melange pas encore. »
  */
-
-const OPPOSE: Record<Direction, Direction> = {
-  nord: "sud",
-  est: "ouest",
-  sud: "nord",
-  ouest: "est",
-};
-
-/** y croit vers le bas : le nord retire une ligne. */
-const DELTA: Record<Direction, readonly [number, number]> = {
-  nord: [0, -1],
-  est: [1, 0],
-  sud: [0, 1],
-  ouest: [-1, 0],
-};
 
 /**
  * Etat serveur d'une partie de topologie.
@@ -116,139 +108,6 @@ function lireContenu(definition: PuzzleDefinition): TopologieContent {
   };
 }
 
-function voisin(
-  case_: number,
-  direction: Direction,
-  largeur: number,
-  hauteur: number,
-): number | null {
-  const x = (case_ % largeur) + (DELTA[direction][0] as number);
-  const y = Math.floor(case_ / largeur) + (DELTA[direction][1] as number);
-  if (x < 0 || y < 0 || x >= largeur || y >= hauteur) return null;
-  return y * largeur + x;
-}
-
-/** Trie les cotes dans l'ordre canonique, pour que deux vues egales le soient. */
-function ordonner(cotes: Iterable<Direction>): Direction[] {
-  const presents = new Set(cotes);
-  return DIRECTIONS.filter((d) => presents.has(d));
-}
-
-/**
- * Creuse un labyrinthe par parcours en profondeur, puis abat quelques murs en
- * plus. Les boucles sont ce qui rend deux endroits indiscernables — donc ce
- * qui force le duo a se decrire l'espace au lieu de deviner.
- */
-function creuser(contenu: TopologieContent, rng: Rng): Direction[][] {
-  const total = contenu.largeur * contenu.hauteur;
-  const murs = Array.from(
-    { length: total },
-    () => new Set<Direction>(DIRECTIONS),
-  );
-
-  const vus = new Set<number>();
-  const depart = rng.entier(total);
-  const pile = [depart];
-  vus.add(depart);
-
-  while (pile.length > 0) {
-    const courant = pile[pile.length - 1] as number;
-    const candidats = DIRECTIONS.filter((d) => {
-      const v = voisin(courant, d, contenu.largeur, contenu.hauteur);
-      return v !== null && !vus.has(v);
-    });
-
-    if (candidats.length === 0) {
-      pile.pop();
-      continue;
-    }
-
-    const direction = candidats[rng.entier(candidats.length)] as Direction;
-    const suivant = voisin(
-      courant,
-      direction,
-      contenu.largeur,
-      contenu.hauteur,
-    ) as number;
-
-    murs[courant]?.delete(direction);
-    murs[suivant]?.delete(OPPOSE[direction]);
-    vus.add(suivant);
-    pile.push(suivant);
-  }
-
-  for (let pose = 0, essai = 0; pose < contenu.boucles && essai < 200; essai++) {
-    const case_ = rng.entier(total);
-    const direction = DIRECTIONS[rng.entier(DIRECTIONS.length)] as Direction;
-    const autre = voisin(case_, direction, contenu.largeur, contenu.hauteur);
-    if (autre === null || !murs[case_]?.has(direction)) continue;
-    murs[case_]?.delete(direction);
-    murs[autre]?.delete(OPPOSE[direction]);
-    pose++;
-  }
-
-  return murs.map((cotes) => ordonner(cotes));
-}
-
-/** Distance en nombre de pas depuis `source`, ou -1 si inatteignable. */
-function distancesDepuis(instance: TopologieInstance, source: number): number[] {
-  const distances = new Array<number>(
-    instance.largeur * instance.hauteur,
-  ).fill(-1);
-  distances[source] = 0;
-  const file = [source];
-
-  for (let tete = 0; tete < file.length; tete++) {
-    const courant = file[tete] as number;
-    for (const direction of DIRECTIONS) {
-      if (instance.murs[courant]?.includes(direction)) continue;
-      const suivant = voisin(
-        courant,
-        direction,
-        instance.largeur,
-        instance.hauteur,
-      );
-      if (suivant === null || distances[suivant] !== -1) continue;
-      distances[suivant] = (distances[courant] as number) + 1;
-      file.push(suivant);
-    }
-  }
-  return distances;
-}
-
-/**
- * Le plus court chemin, en directions. Deterministe : les cotes sont toujours
- * essayes dans l'ordre canonique, donc deux appels rendent la meme suite.
- */
-function cheminVers(
-  instance: TopologieInstance,
-  depart: number,
-  arrivee: number,
-): Direction[] {
-  const distances = distancesDepuis(instance, arrivee);
-  const suite: Direction[] = [];
-  let courant = depart;
-
-  while (courant !== arrivee) {
-    const restant = distances[courant] as number;
-    if (restant <= 0) return suite;
-    const pas = DIRECTIONS.find((direction) => {
-      if (instance.murs[courant]?.includes(direction)) return false;
-      const suivant = voisin(
-        courant,
-        direction,
-        instance.largeur,
-        instance.hauteur,
-      );
-      return suivant !== null && distances[suivant] === restant - 1;
-    });
-    if (!pas) return suite;
-    suite.push(pas);
-    courant = voisin(courant, pas, instance.largeur, instance.hauteur) as number;
-  }
-  return suite;
-}
-
 function refus(hint: string): Feedback {
   return { kind: "rejected", hint };
 }
@@ -260,11 +119,6 @@ export function creerModuleTopologie(
 ): PuzzleModule<TopologieInstance> {
   const contenu = lireContenu(definition);
   const total = contenu.largeur * contenu.hauteur;
-
-  const enCoordonnees = (case_: number): { x: number; y: number } => ({
-    x: case_ % contenu.largeur,
-    y: Math.floor(case_ / contenu.largeur),
-  });
 
   /** L'enigme telle qu'elle a ete posee, quel que soit l'avancement. */
   const neuve = (instance: TopologieInstance): TopologieInstance => ({
@@ -281,7 +135,7 @@ export function creerModuleTopologie(
       const rng = rngDepuis(seed);
 
       for (let essai = 0; essai < 200; essai++) {
-        const murs = creuser(contenu, rng);
+        const murs = creuser(contenu.largeur, contenu.hauteur, contenu.boucles, rng);
         const depot = rng.entier(total);
         const provisoire: TopologieInstance = {
           largeur: contenu.largeur,
@@ -321,8 +175,8 @@ export function creerModuleTopologie(
           largeur: instance.largeur,
           hauteur: instance.hauteur,
           murs: instance.murs.map((cotes) => [...cotes]),
-          depot: enCoordonnees(instance.depot),
-          jalon: instance.jalon === null ? null : enCoordonnees(instance.jalon),
+          depot: enCoordonnees(instance, instance.depot),
+          jalon: instance.jalon === null ? null : enCoordonnees(instance, instance.jalon),
         };
       }
 
@@ -352,12 +206,7 @@ export function creerModuleTopologie(
         if (instance.murs[instance.position]?.includes(direction)) {
           return { instance, feedback: refus("Le passage est ferme de ce cote.") };
         }
-        const suivant = voisin(
-          instance.position,
-          direction,
-          instance.largeur,
-          instance.hauteur,
-        );
+        const suivant = voisin(instance, instance.position, direction);
         if (suivant === null) {
           return { instance, feedback: refus("Le passage est ferme de ce cote.") };
         }
@@ -431,7 +280,7 @@ export function creerModuleTopologie(
 
       for (let case_ = 0; case_ < total; case_++) {
         if (case_ === instance.jalon) continue;
-        const { x, y } = enCoordonnees(case_);
+        const { x, y } = enCoordonnees(contenu, case_);
         actions.push({ role: "A", action: { type: "jalonner", x, y } });
       }
 

@@ -4,6 +4,7 @@ import {
   chiffrer,
   cleContenu,
   dechiffrer,
+  oublierDefinitions,
   validerDefinition,
 } from "../content/loader";
 import type { PuzzleDefinition } from "../content/types";
@@ -50,6 +51,13 @@ if (!process.env["CONTENT_KEY"]) {
   console.error("CONTENT_KEY absente. Lance d'abord content:cle.");
   process.exit(1);
 }
+
+// Cet outil ne touche QUE du contenu de production : il doit donc le resoudre
+// comme la production le fera. Une salle qui reprend le lexique d'une autre
+// (la salle 3) irait autrement le chercher dans la fixture de developpement.
+// Ce n'est pas a l'operateur de penser a exporter NODE_ENV. Voir D53.
+process.env["NODE_ENV"] = "production";
+oublierDefinitions();
 
 if (source.startsWith(RACINE)) {
   console.error("La source doit etre ecrite hors du depot.");

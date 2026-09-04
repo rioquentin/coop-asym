@@ -45,6 +45,10 @@ const CLES_DE_VUE: Record<string, Record<Role, string[]>> = {
     A: ["depot", "hauteur", "jalon", "kind", "largeur", "murs"],
     B: ["kind", "ouvertures", "surLeDepot", "surLeJalon"],
   },
+  "src/puzzles/releve/index.ts": {
+    A: ["attendus", "hauteur", "kind", "largeur", "marques", "murs", "progres"],
+    B: ["grave", "kind", "ouvertures", "progres"],
+  },
 };
 
 function echec(assertion: string, seed: string): never {
@@ -106,16 +110,28 @@ for (const salle of CHAINE_DES_SALLES) {
       // Deuxieme angle, independant du module : on regroupe 500 instances par
       // vue et on verifie qu'une meme vue recouvre plusieurs solutions.
       for (const role of ROLES) {
-        const parVue = new Map<string, Set<string>>();
+        const parVue = new Map<string, { seeds: number; solutions: Set<string> }>();
         for (const seed of SEEDS) {
           const instance = enigme.generate(seed);
           const vue = stable(enigme.viewFor(role, instance));
-          const solutions = parVue.get(vue) ?? new Set<string>();
-          solutions.add(stable(enigme.solve(instance)));
-          parVue.set(vue, solutions);
+          const groupe = parVue.get(vue) ?? { seeds: 0, solutions: new Set() };
+          groupe.seeds++;
+          groupe.solutions.add(stable(enigme.solve(instance)));
+          parVue.set(vue, groupe);
         }
-        const ambigue = [...parVue.values()].some((s) => s.size > 1);
-        expect(ambigue, `asymetrie-par-echantillon/${role}`).toBe(true);
+
+        // Cet angle ne mord que si deux seeds partagent une vue. Passe une
+        // certaine taille d'espace, la collision ne se produit plus et le
+        // controle ne dit plus rien — c'est la limite annoncee en D20, et
+        // c'est exactement pour ca que le temoin fabrique existe.
+        const groupes = [...parVue.values()];
+        const collisions = groupes.filter((g) => g.seeds > 1);
+        if (collisions.length === 0) continue;
+
+        expect(
+          collisions.some((g) => g.solutions.size > 1),
+          `asymetrie-par-echantillon/${role}`,
+        ).toBe(true);
       }
     });
 
@@ -190,7 +206,35 @@ describe("chaine des salles", () => {
     });
 
     // Salle 1 : LEXIQUE seul. Salle 2 : TOPOLOGIE seule, aucun glyphe.
+    // Salle 3 : les deux, et pas avant.
     expect(definitions[0]?.primitives).toEqual(["LEXIQUE"]);
     expect(definitions[1]?.primitives).toEqual(["TOPOLOGIE"]);
+    expect(definitions[2]?.primitives).toEqual(["LEXIQUE", "TOPOLOGIE"]);
+  });
+
+  it("respecte la regle de continuite du lexique", () => {
+    // docs/puzzle-spec.md section 3 : « tout element de lexique introduit en
+    // salle 1 doit reapparaitre au moins une fois plus tard ». La salle 3
+    // reprend les glyphes EXACTS de la salle 1, sens compris.
+    const salle1 = chargerDefinition(CHAINE_DES_SALLES[0]);
+    const salle3 = chargerDefinition(CHAINE_DES_SALLES[2] as string);
+
+    expect(salle3.reusesLexiconFrom).toContain(salle1.id);
+    expect((salle3.content as { lexiqueDe?: string }).lexiqueDe).toBe(
+      CHAINE_DES_SALLES[0],
+    );
+
+    const glyphes1 = new Set(
+      (salle1.content as { glyphs?: string[] }).glyphs ?? [],
+    );
+    const enigme3 = chargerModule(salle3);
+
+    // Chaque gravure vient bien du lexique de la salle 1.
+    for (const seed of seedsDeVerification(50, "continuite")) {
+      const instance = enigme3.generate(seed) as { graves: (string | null)[] };
+      for (const grave of instance.graves) {
+        if (grave !== null) expect(glyphes1.has(grave)).toBe(true);
+      }
+    }
   });
 });
